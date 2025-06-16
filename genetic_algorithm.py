@@ -162,10 +162,10 @@ class GeneticAlgorithm:
         :return: Nothing but each neural_net in networks is now evaluated (in neural_net.score)
         """
         game = Game()
-        results1 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(neural_net=networks[i]) for i in range(len(networks))))
-        results2 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(neural_net=networks[i]) for i in range(len(networks))))
-        results3 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(neural_net=networks[i]) for i in range(len(networks))))
-        results4 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(neural_net=networks[i]) for i in range(len(networks))))
+        results1 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
+        results2 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
+        results3 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
+        results4 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
         for i in range(len(results1)):
             # Filter out None values before calculating the mean
             scores = [score for score in [results1[i], results2[i], results3[i], results4[i]] if score is not None]
@@ -181,11 +181,11 @@ class GeneticAlgorithm:
         :return: the winning neural net
         """
         game = Game()
-        game.start(neural_net=net1)                # net1 plays a game and so on..
+        game.start(display=False, neural_net=net1)                # net1 plays a game and so on..
         score1 = game.game_score
-        game.start(neural_net=net2)
+        game.start(display=False, neural_net=net2)
         score2 = game.game_score
-        game.start(neural_net=net3)
+        game.start(display=False, neural_net=net3)
         score3 = game.game_score
         maxscore = max(score1, score2, score3)     # the best one is returned
         if maxscore == score1:
@@ -242,9 +242,9 @@ class GeneticAlgorithm:
             res2.biases[layer][bias] = temp.biases[layer][bias]
 
         game = Game()
-        game.start(neural_net=res1)     # child 1 plays a game
+        game.start(display=False, neural_net=res1)     # child 1 plays a game
         score1 = game.game_score
-        game.start(neural_net=res2)     # child 2 plays a game
+        game.start(display=False, neural_net=res2)     # child 2 plays a game
         score2 = game.game_score
         if score1 > score2:             # returns best one
             return res1

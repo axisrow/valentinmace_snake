@@ -69,6 +69,12 @@ class GameMenu:
                 'description': 'Very safe but also the best network',
                 'weights': 'saved/larry_weights.npy',
                 'biases': 'saved/larry_biases.npy'
+            },
+            'gen35': {
+                'name': 'Gen 35',
+                'description': 'Trained network from generation 35',
+                'weights': 'gen_35_weights.npy',
+                'biases': 'gen_35_biases.npy'
             }
         }
         
@@ -78,9 +84,9 @@ class GameMenu:
     def setup_buttons(self):
         """Create menu buttons"""
         button_width = 400
-        button_height = 60
-        start_y = 200
-        spacing = 80
+        button_height = 50
+        start_y = 150
+        spacing = 70
         center_x = WINDOW_SIZE - button_width // 2
         
         # Neural network buttons

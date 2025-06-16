@@ -59,11 +59,11 @@ class NeuralNetwork:
         :return: creates two files
         """
         if not name:
-            np.save('saved_weights_'+str(self.score), self.weights)
-            np.save('saved_biases_'+str(self.score), self.biases)
+            np.save('saved_weights_'+str(self.score), np.array(self.weights, dtype=object), allow_pickle=True)
+            np.save('saved_biases_'+str(self.score), np.array(self.biases, dtype=object), allow_pickle=True)
         else:
-            np.save(name + '_weights', self.weights)
-            np.save(name + '_biases', self.biases)
+            np.save(name + '_weights', np.array(self.weights, dtype=object), allow_pickle=True)
+            np.save(name + '_biases', np.array(self.biases, dtype=object), allow_pickle=True)
 
     def load(self, filename_weights, filename_biases):
         """
@@ -72,8 +72,12 @@ class NeuralNetwork:
         :param filename_weights: file containing saved weights
         :param filename_biases: file containing saved biases
         """
-        self.weights = np.load(filename_weights, allow_pickle=True)
-        self.biases = np.load(filename_biases, allow_pickle=True)
+        weights_array = np.load(filename_weights, allow_pickle=True)
+        biases_array = np.load(filename_biases, allow_pickle=True)
+        
+        # Convert back to list if loaded as numpy array
+        self.weights = weights_array.tolist() if isinstance(weights_array, np.ndarray) else weights_array
+        self.biases = biases_array.tolist() if isinstance(biases_array, np.ndarray) else biases_array
 
     def render(self, window, vision):
         """
