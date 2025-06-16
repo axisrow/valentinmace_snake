@@ -27,10 +27,11 @@ from snake import *
 class Map:
     """Map class"""
 
-    def __init__(self, snake):
+    def __init__(self, snake, game=None):
         self.structure = MAP                                            # matrix of 0 and 1 representing the map
         self.snake = snake                                              # snake evolving in the map
-        self.food = [random.randint(8, 12), random.randint(8, 12)]      # food (list of 2 coordinates)
+        self.game = game                                                # reference to game for score tracking
+        self.food = self.find_free_position()                          # food at a safe position
 
     def update(self):
         """
@@ -41,16 +42,47 @@ class Map:
         snake_pos = self.structure[snake_head_y][snake_head_x]
         if [snake_head_x, snake_head_y] == self.food:                   # if snake's head is on food
             self.snake.grow()                                           # snake grows and new food is created
-            self.add_food(random.randint(1, SPRITE_NUMBER - 2),
-                          random.randint(1, SPRITE_NUMBER - 2))
+            if self.game:                                               # increase score if game reference exists
+                self.game.increase_score()
+            self.add_food()
         elif snake_pos == WALL:                                         # if snake's head is on wall, snek is ded
             self.snake.alive = False
 
-    def add_food(self, block_x, block_y):
+    def find_free_position(self):
         """
-        Adds food on (block_x, block_y) position
+        Finds a free position for food that is not occupied by snake's body or walls
+        
+        :return: list [x, y] coordinates of free position
         """
-        self.food = [block_x, block_y]
+        max_attempts = 100  # Safety limit to prevent infinite loop
+        attempts = 0
+        
+        while attempts < max_attempts:
+            x = random.randint(1, SPRITE_NUMBER - 2)
+            y = random.randint(1, SPRITE_NUMBER - 2)
+            
+            # Check if position is not a wall
+            if self.structure[y][x] != WALL:
+                # Check if position is not occupied by snake's body
+                if [x, y] not in self.snake.body:
+                    return [x, y]
+            
+            attempts += 1
+        
+        # Fallback: find any free position systematically if random failed
+        for y in range(1, SPRITE_NUMBER - 1):
+            for x in range(1, SPRITE_NUMBER - 1):
+                if self.structure[y][x] != WALL and [x, y] not in self.snake.body:
+                    return [x, y]
+        
+        # Last resort: return a safe position (should never happen in normal game)
+        return [1, 1]
+
+    def add_food(self):
+        """
+        Adds food at a free position that is not occupied by snake's body or walls
+        """
+        self.food = self.find_free_position()
 
     def render(self, window):
         """

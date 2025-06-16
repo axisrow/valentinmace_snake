@@ -20,6 +20,7 @@ Todos:
 from map import *
 from pygame.locals import QUIT, KEYDOWN, K_ESCAPE, K_RIGHT, K_LEFT, K_UP
 from snake import *
+from game_menu import GameMenu
 
 
 class Game:
@@ -28,8 +29,9 @@ class Game:
     def __init__(self):
         self.game_score = 0     # contains the snake fitness at the end of the game
         self.game_time = 0      # number of iteration de game has been played (useful to stop long games)
+        self.score = 0          # current game score (1 point per food eaten)
 
-    def start(self, display=False, neural_net=None, playable=False, speed=20):
+    def start(self, display=False, neural_net=None, playable=False, speed=20, show_menu=True):
         """
         Wraps run_invisible and run_visibile for simplicity when starting a game
 
@@ -42,12 +44,16 @@ class Game:
         :param neural_net: NeuralNetwork to provide for not playable game
         :param playable: boolean to play manually or not the game
         :param speed: game speed for displayed games
+        :param show_menu: boolean show menu before game
         :return: int score achieved
         """
         if not display:
             return self.run_invisible(neural_net=neural_net)
         else:
-            return self.run_visible(neural_net=neural_net, playable=playable, speed=speed)
+            if show_menu:
+                return self.run_with_menu(speed=speed)
+            else:
+                return self.run_visible(neural_net=neural_net, playable=playable, speed=speed)
 
     def run_invisible(self, neural_net=None):
         """
@@ -59,8 +65,9 @@ class Game:
         :param neural_net: NeuralNetwork that will play the game
         :return: int score achieved
         """
+        self.score = 0                              # reset score for new game
         snake = Snake(neural_net=neural_net)        # creation of the snake and of its little brain
-        map = Map(snake)                            # map creation
+        map = Map(snake, self)                      # map creation with game reference
 
         cont = True                                 # main game loop
         while cont:
@@ -74,6 +81,12 @@ class Game:
                 self.game_time = 0
         self.game_score = snake.fitness()           # if the game is over, returns the score
         return self.game_score
+    
+    def increase_score(self):
+        """
+        Increases the game score by 1 point (called when food is eaten)
+        """
+        self.score += 1
 
     def run_visible(self, playable=False, neural_net=None, speed=20):
         """
@@ -84,12 +97,13 @@ class Game:
         :param speed: game speed
         :return: int score achieved
         """
+        self.score = 0                                                              # reset score for new game
         pygame.init()                                                               # pygame initialization
         game_window = pygame.display.set_mode((int(WINDOW_SIZE*2), WINDOW_SIZE))    # opens window
         pygame.display.set_caption(WINDOW_TITLE)
 
         snake = Snake(neural_net=neural_net)
-        map = Map(snake)
+        map = Map(snake, self)
 
         cont = [True]
         while cont[0]:                               # main game loop
@@ -106,6 +120,59 @@ class Game:
 
         self.game_score = snake.fitness()            # if the game is over, returns the score
         return self.game_score
+    
+    def run_with_menu(self, speed=20):
+        """
+        Runs the game with graphical menu for selecting neural networks
+        
+        :param speed: game speed
+        :return: int score achieved
+        """
+        pygame.init()
+        game_window = pygame.display.set_mode((int(WINDOW_SIZE*2), WINDOW_SIZE))
+        pygame.display.set_caption(WINDOW_TITLE + " - Menu")
+        
+        menu = GameMenu()
+        clock = pygame.time.Clock()
+        
+        while True:
+            events = pygame.event.get()
+            
+            # Handle quit events
+            for event in events:
+                if event.type == QUIT:
+                    pygame.quit()
+                    return 0
+                elif event.type == KEYDOWN and event.key == K_ESCAPE:
+                    pygame.quit()
+                    return 0
+            
+            # Handle menu events
+            action, data = menu.handle_events(events)
+            
+            if action == 'exit':
+                pygame.quit()
+                return 0
+            elif action == 'manual':
+                pygame.display.set_caption(WINDOW_TITLE + " - Manual Play")
+                score = self.run_visible(neural_net=None, playable=True, speed=speed)
+                pygame.display.set_caption(WINDOW_TITLE + " - Menu")
+                # Return to menu after game
+                continue
+            elif action == 'network':
+                if isinstance(data, str):
+                    network = menu.load_network(data)
+                    if network:
+                        pygame.display.set_caption(WINDOW_TITLE + f" - {menu.networks[data]['name']}")
+                        score = self.run_visible(neural_net=network, playable=False, speed=speed)
+                        pygame.display.set_caption(WINDOW_TITLE + " - Menu")
+                        # Return to menu after game
+                        continue
+            
+            # Draw menu
+            menu.draw(game_window)
+            pygame.display.flip()
+            clock.tick(60)
 
     def inputs_management(self, snake, cont):
         """
@@ -130,4 +197,14 @@ class Game:
         Works by calling render() for the map which in turn will call render for the snake etc.
         """
         map.render(window)
+        self.render_score(window)
         pygame.display.flip()
+    
+    def render_score(self, window):
+        """
+        Renders the current score on the game window
+        """
+        font = pygame.font.Font(None, 36)
+        score_text = font.render(f"Score: {self.score}", True, (255, 255, 255))
+        # Position in top-left corner of the game area
+        window.blit(score_text, (10, 10))
