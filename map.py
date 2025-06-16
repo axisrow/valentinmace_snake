@@ -142,7 +142,7 @@ class Map:
                     res = 1
             return res
 
-        scan = [[0],[0],[0],[0],[0],[0],[0],[0],[0],[0],[0],[0],[0],[0],[0],[0],[0],[0],[0],[0],[0]]    # default value
+        scan = [[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0]]    # default value
         structure = self.structure
         snake_body = self.snake.body                # making local variables for readability and performance
         head_x = self.snake.head[0]
@@ -202,7 +202,7 @@ class Map:
 
 
 @jit(nopython=True)
-def distance(p1=None, p2=None):
+def distance(p1, p2):
     """
     Gives euclidian distance between two points
     @jit is used to speed up computation

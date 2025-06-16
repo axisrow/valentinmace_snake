@@ -96,6 +96,11 @@ class Snake:
         Makes decision for the snake direction according to its current vision
         Vision is given to the NeuralNetwork and most activated output neuron is considered as decision
         """
+        if self.neural_net is None:
+            # If there's no neural network, the snake cannot make AI decisions.
+            # It will continue in its current direction.
+            return
+
         decision = np.argmax(self.neural_net.feed_forward(self.vision))
         if decision == 1:
             self.turn_right()

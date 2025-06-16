@@ -18,7 +18,7 @@ Todos:
 """
 
 from map import *
-from pygame.locals import *
+from pygame.locals import QUIT, KEYDOWN, K_ESCAPE, K_RIGHT, K_LEFT, K_UP
 from snake import *
 
 

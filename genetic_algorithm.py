@@ -19,6 +19,8 @@ Note:
 import copy
 import multiprocessing
 from random import randint
+import random # Added for random.randint in crossover and mutation
+import numpy as np # Explicitly import numpy
 from game import*
 from neural_network import *
 from joblib import Parallel, delayed
@@ -72,8 +74,8 @@ class GeneticAlgorithm:
         """
         networks = self.networks
         population_size = self.population_size
-        crossover_number = int(self.crossover_rate*self.population_size)   # calculate number of children to be produced
-        mutation_number = int(self.mutation_rate*self.population_size)     # calculate number of mutation to be done
+        crossover_number = max(0, int(self.crossover_rate*self.population_size))   # calculate number of children to be produced
+        mutation_number = max(0, int(self.mutation_rate*self.population_size))     # calculate number of mutation to be done
 
         num_cores = multiprocessing.cpu_count()         # number of cores in your computer for later parallelization
         gen = 0                                         # current generation
@@ -84,7 +86,10 @@ class GeneticAlgorithm:
             children = self.children_production(crossover_number, parents)                     # children making
             mutations = self.mutation_production(networks, mutation_number, population_size)   # mutations making
 
-            networks = networks + children + mutations                      # old population and new individuals
+            # Ensure networks is a list before concatenation
+            networks = networks if networks is not None else []
+            networks = networks + (children if children is not None else []) + \
+                       (mutations if mutations is not None else [])                      # old population and new individuals
             self.evaluation(networks, num_cores)                            # evaluation of neural nets
             networks.sort(key=lambda Network: Network.score, reverse=True)  # ranking neural nets
             networks[0].save(name="gen_"+str(gen))                          # saving best of current generation
@@ -157,12 +162,14 @@ class GeneticAlgorithm:
         :return: Nothing but each neural_net in networks is now evaluated (in neural_net.score)
         """
         game = Game()
-        results1 = Parallel(n_jobs=num_cores)(delayed(game.start)(neural_net=networks[i]) for i in range(len(networks)))
-        results2 = Parallel(n_jobs=num_cores)(delayed(game.start)(neural_net=networks[i]) for i in range(len(networks)))
-        results3 = Parallel(n_jobs=num_cores)(delayed(game.start)(neural_net=networks[i]) for i in range(len(networks)))
-        results4 = Parallel(n_jobs=num_cores)(delayed(game.start)(neural_net=networks[i]) for i in range(len(networks)))
+        results1 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(neural_net=networks[i]) for i in range(len(networks))))
+        results2 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(neural_net=networks[i]) for i in range(len(networks))))
+        results3 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(neural_net=networks[i]) for i in range(len(networks))))
+        results4 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(neural_net=networks[i]) for i in range(len(networks))))
         for i in range(len(results1)):
-            networks[i].score = int(np.mean([results1[i], results2[i], results3[i], results4[i]]))
+            # Filter out None values before calculating the mean
+            scores = [score for score in [results1[i], results2[i], results3[i], results4[i]] if score is not None]
+            networks[i].score = int(np.mean(scores)) if scores else 0
 
     def tournament(self, net1, net2, net3):
         """
