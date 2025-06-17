@@ -1,27 +1,7 @@
-# Valentin Macé
-# valentin.mace@kedgebs.com
-# Developed for fun
-# Feel free to use this code as you wish as long as you quote me as author
-
-"""
-game.py
-~~~~~~~~~~
-
-This module defines a game of snake which can be displayed or not, playable or not
-It uses Pygame for the display
-
-Todos:
-- It would be cool to make it more general in order to have a game of "anything" so
-  the Genetic algorithm could run games regardless of what it's playing, I'll work on it
-  for later projects
-- Rethink the class and be able to save the state of the game
-"""
-
 from map import *
-from pygame.locals import QUIT, KEYDOWN, K_ESCAPE, K_RIGHT, K_LEFT, K_UP
+from pygame.locals import QUIT, KEYDOWN, K_ESCAPE
 from snake import *
 from game_menu import GameMenu
-
 
 class Game:
     """ Game Class """
@@ -31,18 +11,16 @@ class Game:
         self.game_time = 0      # number of iteration de game has been played (useful to stop long games)
         self.score = 0          # current game score (1 point per food eaten)
 
-    def start(self, display=False, neural_net=None, playable=False, speed=20, show_menu=True):
+    def start(self, display=False, neural_net=None, speed=20, show_menu=True):
         """
-        Wraps run_invisible and run_visibile for simplicity when starting a game
+        Wraps run_invisible and run_visible for simplicity when starting a game
 
         Note:
         Arguments are not checked for the sake of performance when starting a big amount
-        of games (in the GA typically) so you might generate bugs if you start using something like
-        playable=True and passing a neural_net so .."we are all consenting adults here" ;)
+        of games (in the GA typically).
 
         :param display: boolean display or not the game
-        :param neural_net: NeuralNetwork to provide for not playable game
-        :param playable: boolean to play manually or not the game
+        :param neural_net: NeuralNetwork to provide for the game
         :param speed: game speed for displayed games
         :param show_menu: boolean show menu before game
         :return: int score achieved
@@ -53,14 +31,14 @@ class Game:
             if show_menu:
                 return self.run_with_menu(speed=speed)
             else:
-                return self.run_visible(neural_net=neural_net, playable=playable, speed=speed)
+                return self.run_visible(neural_net=neural_net, speed=speed)
 
     def run_invisible(self, neural_net=None):
         """
-        Runs a undisplayed game played by a neural network
+        Runs an undisplayed game played by a neural network.
 
-        The game is played as fast as possible, you might want fix a limit for the duration of the game,
-        I advise to add 'or self.game_time > x' to the end condition
+        The game is played as fast as possible, you might want to fix a limit for the duration of the game,
+        I advise to add 'or self.game_time > x' to the end condition.
 
         :param neural_net: NeuralNetwork that will play the game
         :return: int score achieved
@@ -81,19 +59,18 @@ class Game:
                 self.game_time = 0
         self.game_score = snake.fitness()           # if the game is over, returns the score
         return self.game_score
-    
+
     def increase_score(self):
         """
         Increases the game score by 1 point (called when food is eaten)
         """
         self.score += 1
 
-    def run_visible(self, playable=False, neural_net=None, speed=20):
+    def run_visible(self, neural_net, speed=20):
         """
-        Runs a displayed game played by a neural network or by human
+        Runs a displayed game played by a neural network.
 
-        :param playable: boolean to play manually or not the game
-        :param neural_net: NeuralNetwork to provide for not playable game
+        :param neural_net: NeuralNetwork to provide for the game
         :param speed: game speed
         :return: int score achieved
         """
@@ -108,11 +85,10 @@ class Game:
         cont = [True]
         while cont[0]:                               # main game loop
             pygame.time.Clock().tick(speed)             # display speed
-            self.inputs_management(snake, cont)      # inputs handling
-            if not playable:
-                map.scan()                           # gives vision to the snake
-                snake.AI()                           # snake makes decision
-            self.render(game_window, map)            # render the game
+            self.inputs_management(cont)                # inputs handling (for quitting)
+            map.scan()                                  # gives vision to the snake
+            snake.AI()                                  # snake makes decision
+            self.render(game_window, map)               # render the game
             snake.update()
             map.update()
             if not snake.alive:
@@ -120,10 +96,10 @@ class Game:
 
         self.game_score = snake.fitness()            # if the game is over, returns the score
         return self.game_score
-    
+
     def run_with_menu(self, speed=20):
         """
-        Runs the game with graphical menu for selecting neural networks
+        Runs the game with a graphical menu for selecting neural networks.
         
         :param speed: game speed
         :return: int score achieved
@@ -153,18 +129,12 @@ class Game:
             if action == 'exit':
                 pygame.quit()
                 return 0
-            elif action == 'manual':
-                pygame.display.set_caption(WINDOW_TITLE + " - Manual Play")
-                score = self.run_visible(neural_net=None, playable=True, speed=speed)
-                pygame.display.set_caption(WINDOW_TITLE + " - Menu")
-                # Return to menu after game
-                continue
             elif action == 'network':
                 if isinstance(data, str):
                     network = menu.load_network(data)
                     if network:
                         pygame.display.set_caption(WINDOW_TITLE + f" - {menu.networks[data]['name']}")
-                        score = self.run_visible(neural_net=network, playable=False, speed=speed)
+                        score = self.run_visible(neural_net=network, speed=speed)
                         pygame.display.set_caption(WINDOW_TITLE + " - Menu")
                         # Return to menu after game
                         continue
@@ -174,9 +144,9 @@ class Game:
             pygame.display.flip()
             clock.tick(60)
 
-    def inputs_management(self, snake, cont):
+    def inputs_management(self, cont):
         """
-        Keyboard inputs management
+        Keyboard inputs management (for quitting the game).
         """
         for event in pygame.event.get():
             if event.type == QUIT:
@@ -184,25 +154,19 @@ class Game:
             elif event.type == KEYDOWN:
                 if event.key == K_ESCAPE:       # escape
                     cont[0] = False
-                if event.key == K_RIGHT:        # right
-                    snake.turn_right()
-                elif event.key == K_LEFT:       # left
-                    snake.turn_left()
-                elif event.key == K_UP:         # up
-                    pass
 
     def render(self, window, map):
         """
-        Renders the game
+        Renders the game.
         Works by calling render() for the map which in turn will call render for the snake etc.
         """
         map.render(window)
         self.render_score(window)
         pygame.display.flip()
-    
+
     def render_score(self, window):
         """
-        Renders the current score on the game window
+        Renders the current score on the game window.
         """
         font = pygame.font.Font(None, 36)
         score_text = font.render(f"Score: {self.score}", True, (255, 255, 255))

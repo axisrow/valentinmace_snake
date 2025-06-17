@@ -1,8 +1,3 @@
-# Valentin Macé
-# valentin.mace@kedgebs.com
-# Developed for fun
-# Feel free to use this code as you wish as long as you quote me as author
-
 """
 game_menu.py
 ~~~~~~~~~~
@@ -14,11 +9,10 @@ import pygame
 from constants import *
 from neural_network import NeuralNetwork
 
-
 class Button:
     """Simple button class for menu"""
     
-    def __init__(self, x, y, width, height, text, color=(70, 70, 70), hover_color=(100, 100, 100), text_color=(255, 255, 255)):
+    def __init__(self, x, y, width, height, text, color=(70, 70, 70), hover_color=(100, 100, 100), text_color=(255, 255, 255), network_key=None, action=None):
         self.rect = pygame.Rect(x, y, width, height)
         self.text = text
         self.color = color
@@ -26,6 +20,8 @@ class Button:
         self.text_color = text_color
         self.font = pygame.font.Font(None, 32)
         self.hovered = False
+        self.network_key = network_key
+        self.action = action
     
     def handle_event(self, event):
         """Handle mouse events"""
@@ -95,29 +91,20 @@ class GameMenu:
             button = Button(
                 center_x, y_pos, button_width, button_height,
                 f"{network['name']} - {network['description'][:25]}...",
-                color=(50, 100, 50), hover_color=(70, 140, 70)
+                color=(50, 100, 50), hover_color=(70, 140, 70),
+                network_key=key
             )
-            button.network_key = key
             self.buttons.append(button)
             y_pos += spacing
         
-        # Manual play button
-        manual_button = Button(
-            center_x, y_pos, button_width, button_height,
-            "Play Manually",
-            color=(100, 50, 50), hover_color=(140, 70, 70)
-        )
-        manual_button.action = 'manual'
-        self.buttons.append(manual_button)
-        y_pos += spacing
         
         # Exit button
         exit_button = Button(
             center_x, y_pos, button_width, button_height,
             "Exit",
-            color=(80, 80, 80), hover_color=(120, 120, 120)
+            color=(80, 80, 80), hover_color=(120, 120, 120),
+            action='exit'
         )
-        exit_button.action = 'exit'
         self.buttons.append(exit_button)
     
     def handle_events(self, events):
