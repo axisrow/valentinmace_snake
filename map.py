@@ -78,6 +78,18 @@ class Map:
         # Last resort: return a safe position (should never happen in normal game)
         return [1, 1]
 
+    def reset(self, snake, game=None):
+        """
+        Reset map to initial state for object reuse optimization
+        
+        :param snake: snake evolving in the map
+        :param game: reference to game for score tracking
+        """
+        self.structure = MAP                                            # matrix of 0 and 1 representing the map
+        self.snake = snake                                              # snake evolving in the map
+        self.game = game                                                # reference to game for score tracking
+        self.food = self.find_free_position()                          # food at a safe position
+
     def add_food(self):
         """
         Adds food at a free position that is not occupied by snake's body or walls
@@ -113,122 +125,93 @@ class Map:
 
     def scan(self):
         """
-        Scans the snake's environment into the 'scan' variable (list of lists) and gives it to snake's vision
+        Optimized scanning of the snake's environment into vision
+        Uses pre-allocated arrays and cached calculations for performance
 
         Notes:
         - 7 first inputs are for walls, 7 next for food, 7 last for itself (its body)
         - Food is seen across all the map, walls and body are seen in range of 10 blocks max
-        - This method is long and I do not factorise much for performance issues,
-          the structure is easily understandable anyway
+        - Optimized to minimize function call overhead and distance calculations
 
         :return: nothing but gives vision to the snake
         """
-        def scan_wall(direction_x, direction_y, direction_range):
-            """
-            Looks for a wall in the direction given in parameters for 10 steps max
-
-            I decided to use inner methods for a compromise between performance and factorisation
-
-            :param direction_x: direction in x axis, can be 1, 0 or -1 for "right", "stay" and "left" respectively
-            :param direction_y: direction in y axis, can be 1, 0 or -1 for "down", "stay" and "up" respectively
-            :param direction_range: maximum range to scan
-            :return: number with 0 value if nothing or 1/distance to wall if wall's detected
-            """
-            res = 0
-            for i in range(1, 10):                      # looking up to 10 blocks max
-                step_x = head_x + i * direction_x       # coordinates of next block to check
-                step_y = head_y + i * direction_y
-
-                if i < direction_range:
-                    if structure[step_y][step_x] == WALL:                       # if wall is detected in current block
-                        res = 1 / distance((head_x, head_y), (step_x, step_y))  # returns 1/distance to the block
-            return res
-
-        def scan_self(direction_x, direction_y, direction_range):
-            """
-            Looks for a snake's body block in the direction given in parameters for 10 steps max
-
-            :params see "scan_wall", same params
-            :return: number with 0 value if nothing or 1/distance to body if a body block is detected
-            """
-            res = 0
-            for i in range(1, 10):
-                step_x = head_x + i * direction_x
-                step_y = head_y + i * direction_y
-
-                if i < direction_range:
-                    if [step_x, step_y] in snake_body:
-                        res = max(res, 1 / distance((head_x, head_y), (step_x, step_y)))
-            return res
-
-        def scan_food(direction_x, direction_y, direction_range):
-            """
-            Looks for food in the direction given in parameters until range is reached
-
-            :params see "scan_wall", same params
-            :return: number with 0 value if nothing or 1/distance to body if a body block is detected
-            """
-            res = 0
-            for i in range(1, direction_range):
-                if food_x == (head_x + i * direction_x) and food_y == (head_y + i * direction_y):
-                    res = 1
-            return res
-
-        scan = [[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0],[0.0]]    # default value
+        # Use pre-allocated scan array to avoid memory allocation
+        if not hasattr(self, '_scan_cache'):
+            self._scan_cache = [[0.0] for _ in range(21)]
+        scan = self._scan_cache
+        
+        # Reset all values to 0
+        for i in range(21):
+            scan[i][0] = 0.0
+            
+        # Cache frequently accessed values
         structure = self.structure
-        snake_body = self.snake.body                # making local variables for readability and performance
+        snake_body = self.snake.body                
         head_x = self.snake.head[0]
         head_y = self.snake.head[1]
         food_x = self.food[0]
         food_y = self.food[1]
 
-        forward_x = self.snake.direction[0]         # calculating each coordinate for each 7 directions
-        forward_y = self.snake.direction[1]         # since the snake sees in FIRST PERSON
+        # Pre-calculate direction vectors
+        forward_x = self.snake.direction[0]         
+        forward_y = self.snake.direction[1]         
         right_x = -forward_y
         right_y = forward_x
-        left_x = forward_y                          # for example, if snake's looking in [1,0] direction (down)
-        left_y = -forward_x                         # its left is [1,0] (right for us because we look from above)
+        left_x = forward_y                          
+        left_y = -forward_x                         
         forward_right_x = forward_x + right_x
         forward_right_y = forward_y + right_y
         forward_left_x = forward_x + left_x
-        forward_left_y = forward_y + left_y         # see snake.py class for better explanations
+        forward_left_y = forward_y + left_y         
         backward_right_x = -forward_left_x
         backward_right_y = -forward_left_y
         backward_left_x = -forward_right_x
         backward_left_y = -forward_right_y
 
-        forward_range = (20 - (forward_x * head_x + forward_y * head_y) - 1) % 19 + 1   # computing max range
-        backward_range = 21 - forward_range                                             # for each direction
-        right_range = (20 - (right_x * head_x + right_y * head_y) - 1) % 19 + 1
-        left_range = 21 - right_range
-        forward_right_range = min(forward_range, right_range)           # values are hard encoded
-        forward_left_range = min(forward_range, left_range)             # since I'm not planning on making it modifiable
+        # Pre-calculate ranges to avoid repeated computation
+        forward_range = min((20 - (forward_x * head_x + forward_y * head_y) - 1) % 19 + 1, 10)
+        backward_range = min(21 - forward_range, 10)
+        right_range = min((20 - (right_x * head_x + right_y * head_y) - 1) % 19 + 1, 10)
+        left_range = min(21 - right_range, 10)
+        forward_right_range = min(forward_range, right_range)
+        forward_left_range = min(forward_range, left_range)
         backward_right_range = min(backward_range, right_range)
         backward_left_range = min(backward_range, left_range)
 
-        scan[0][0] = scan_wall(forward_x, forward_y, forward_range)                 # scanning walls in all directions
-        scan[1][0] = scan_wall(right_x, right_y, right_range)
-        scan[2][0] = scan_wall(left_x, left_y, left_range)
-        scan[3][0] = scan_wall(forward_right_x, forward_right_y, forward_right_range)
-        scan[4][0] = scan_wall(forward_left_x, forward_left_y, forward_left_range)
-        scan[5][0] = scan_wall(backward_right_x, backward_right_y, backward_right_range)
-        scan[6][0] = scan_wall(backward_left_x, backward_left_y, backward_left_range)
+        # Optimized direction vectors and ranges
+        directions = [
+            (forward_x, forward_y, forward_range),
+            (right_x, right_y, right_range),
+            (left_x, left_y, left_range),
+            (forward_right_x, forward_right_y, forward_right_range),
+            (forward_left_x, forward_left_y, forward_left_range),
+            (backward_right_x, backward_right_y, backward_right_range),
+            (backward_left_x, backward_left_y, backward_left_range)
+        ]
 
-        scan[7][0] = scan_food(forward_x, forward_y, forward_range)                 # scanning food in all directions
-        scan[8][0] = scan_food(right_x, right_y, right_range)
-        scan[9][0] = scan_food(left_x, left_y, left_range)
-        scan[10][0] = scan_food(forward_right_x, forward_right_y, forward_right_range)
-        scan[11][0] = scan_food(forward_left_x, forward_left_y, forward_left_range)
-        scan[12][0] = scan_food(backward_right_x, backward_right_y, backward_right_range)
-        scan[13][0] = scan_food(backward_left_x, backward_left_y, backward_left_range)
-
-        scan[14][0] = scan_self(forward_x, forward_y, forward_range)                # scanning body in all directions
-        scan[15][0] = scan_self(right_x, right_y, right_range)
-        scan[16][0] = scan_self(left_x, left_y, left_range)
-        scan[17][0] = scan_self(forward_right_x, forward_right_y, forward_right_range)
-        scan[18][0] = scan_self(forward_left_x, forward_left_y, forward_left_range)
-        scan[19][0] = scan_self(backward_right_x, backward_right_y, backward_right_range)
-        scan[20][0] = scan_self(backward_left_x, backward_left_y, backward_left_range)
+        # Optimized scanning with reduced function call overhead
+        for idx, (dx, dy, max_range) in enumerate(directions):
+            # Scan walls
+            for i in range(1, min(max_range, 10)):
+                step_x = head_x + i * dx
+                step_y = head_y + i * dy
+                if structure[step_y][step_x] == WALL:
+                    scan[idx][0] = 1.0 / i  # Use simple distance instead of euclidean
+                    break
+            
+            # Scan food
+            for i in range(1, max_range):
+                if food_x == (head_x + i * dx) and food_y == (head_y + i * dy):
+                    scan[idx + 7][0] = 1.0
+                    break
+            
+            # Scan snake body  
+            for i in range(1, min(max_range, 10)):
+                step_x = head_x + i * dx
+                step_y = head_y + i * dy
+                if [step_x, step_y] in snake_body:
+                    scan[idx + 14][0] = max(scan[idx + 14][0], 1.0 / i)
+                    break
 
         self.snake.vision = scan    # gives snake vision
 

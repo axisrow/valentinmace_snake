@@ -107,6 +107,22 @@ class Snake:
         elif decision == 2:
             self.turn_left()
 
+    def reset(self, neural_net=None):
+        """
+        Reset snake to initial state for object reuse optimization
+        
+        :param neural_net: NeuralNet given to the snake in charge of decisions (AI)
+        """
+        self.body = [[10, 10], [9, 10], [9, 11], [9, 12]]       # the snake is in fact a list of coordinates
+        self.head = self.body[0][:]                             # first body block
+        self.old_tail = self.head[:]                            # useful to grow
+        self.direction = RIGHT
+        self.age = 0
+        self.starve = 500                                       # useful to avoid looping AI snakes
+        self.alive = True
+        self.neural_net = neural_net
+        self.vision = []                                        # holds the map.scan() and is used by the neural net
+
     def fitness(self):
         """
         Measures how well the snake is doing as a function of its length and age

@@ -10,8 +10,6 @@ class Game:
         self.game_score = 0     # contains the snake fitness at the end of the game
         self.game_time = 0      # number of iteration de game has been played (useful to stop long games)
         self.score = 0          # current game score (1 point per food eaten)
-        self._cached_snake = None  # reusable snake object for performance
-        self._cached_map = None    # reusable map object for performance
 
     def start(self, display=False, neural_net=None, speed=20, show_menu=True):
         """
@@ -35,48 +33,30 @@ class Game:
             else:
                 return self.run_visible(neural_net=neural_net, speed=speed)
 
-    def run_invisible(self, neural_net=None, max_game_time=1000):
+    def run_invisible(self, neural_net=None):
         """
         Runs an undisplayed game played by a neural network.
 
-        The game is played as fast as possible with a time limit to prevent infinite loops.
-        Uses object pooling to avoid memory allocation overhead.
+        The game is played as fast as possible, you might want to fix a limit for the duration of the game,
+        I advise to add 'or self.game_time > x' to the end condition.
 
         :param neural_net: NeuralNetwork that will play the game
-        :param max_game_time: Maximum number of game iterations before timeout
         :return: int score achieved
         """
         self.score = 0                              # reset score for new game
-        self.game_time = 0                          # reset game time
-        
-        # Object pooling optimization - reuse objects instead of creating new ones
-        if self._cached_snake is None:
-            self._cached_snake = Snake(neural_net=neural_net)
-        else:
-            self._cached_snake.reset(neural_net=neural_net)
-            
-        if self._cached_map is None:
-            self._cached_map = Map(self._cached_snake, self)
-        else:
-            self._cached_map.reset(self._cached_snake, self)
-        
-        snake = self._cached_snake
-        map = self._cached_map
+        snake = Snake(neural_net=neural_net)        # creation of the snake and of its little brain
+        map = Map(snake, self)                      # map creation with game reference
 
-        # optimized main game loop with time limit and early exit conditions
-        snake_alive = snake.alive
-        while snake_alive and self.game_time < max_game_time:
+        cont = True                                 # main game loop
+        while cont:
             self.game_time += 1
             map.scan()                              # gives vision of the environment to the snake
             snake.AI()                              # decision of the neural net (brain of the snake)
             snake.update()                          # snake is moving and aging
             map.update()                            # checking for collision of snake with walls or food
-            snake_alive = snake.alive               # cache alive status for next iteration
-            
-            # early exit if snake is starving (stuck in loop)
-            if snake.starve < 50:
-                break
-            
+            if not snake.alive:
+                cont = False
+                self.game_time = 0
         self.game_score = snake.fitness()           # if the game is over, returns the score
         return self.game_score
 
