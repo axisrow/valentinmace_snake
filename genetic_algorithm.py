@@ -17,7 +17,8 @@ Note:
 """
 
 import copy
-import multiprocessing
+import os
+import time
 from random import randint
 import random # Added for random.randint in crossover and mutation
 import numpy as np # Explicitly import numpy
@@ -37,7 +38,7 @@ class GeneticAlgorithm:
 
     def __init__(self, networks=None, networks_shape=None, population_size=1000, generation_number = 100,
                  crossover_rate=0.3, crossover_method='neuron', mutation_rate=0.7, mutation_method='weight',
-                 device=None, use_torch=None):
+                 device=None, use_torch=None, mps_tournament_mode='hybrid'):
         """
         :param networks(list of NeuralNetwork): First generation networks
         :param networks_shape(list of int): List defining number of layers and number of neurons in each layer
@@ -49,6 +50,7 @@ class GeneticAlgorithm:
         :param mutation_method(str): How mutation will be done
         :param device: torch.device, device to use for GPU acceleration
         :param use_torch: bool, whether to use PyTorch for acceleration
+        :param mps_tournament_mode: str, 'hybrid' (CPU for tournaments, MPS for training) or 'full' (MPS everywhere)
         """
         self.networks_shape = networks_shape
         if self.networks_shape is None:             # if no shape is provided
@@ -62,16 +64,35 @@ class GeneticAlgorithm:
         
         if self.use_torch:
             self.device = device if device else get_device()
+            self.mps_tournament_mode = mps_tournament_mode
             print_device_info(self.device)
+            if self.device.type == 'mps':
+                print(f"MPS Tournament mode: {mps_tournament_mode}")
+                if mps_tournament_mode == 'hybrid':
+                    print("  - Tournaments will run on CPU for stability")
+                    print("  - Training operations will use MPS acceleration")
+                else:
+                    print("  - All operations will use MPS (may be unstable)")
         else:
             self.device = None
+            self.mps_tournament_mode = 'cpu'
             
         self.networks = networks
 
         if networks is None:                                  # if no networks are provided
             self.networks = []
+            print(f"Creating initial population of {population_size} neural networks...")
+            start_time = time.time()
+            
             for i in range(population_size):                  # producing population
+                if i % 100 == 0 and i > 0:  # Progress update every 100 networks
+                    elapsed = time.time() - start_time
+                    print(f"  Created {i}/{population_size} networks ({elapsed:.1f}s elapsed)")
+                
                 self.networks.append(NeuralNetwork(self.networks_shape, device=self.device, use_torch=self.use_torch))
+            
+            elapsed = time.time() - start_time
+            print(f"✓ Population created in {elapsed:.2f} seconds")
 
         self.population_size = population_size
         self.generation_number = generation_number
@@ -99,29 +120,55 @@ class GeneticAlgorithm:
         crossover_number = max(0, int(self.crossover_rate*self.population_size))   # calculate number of children to be produced
         mutation_number = max(0, int(self.mutation_rate*self.population_size))     # calculate number of mutation to be done
 
-        num_cores = multiprocessing.cpu_count()         # number of cores in your computer for later parallelization
+        # Determine optimal number of cores for joblib
+        num_cores = os.cpu_count() or 4
+        # For MPS devices, reduce parallelization to avoid conflicts
+        if self.use_torch and self.device and self.device.type == 'mps':
+            num_cores = min(4, num_cores)  # Limit to 4 cores for MPS
+            print(f"Using {num_cores} cores for MPS device (limited for stability)")
+        else:
+            print(f"Using {num_cores} cores for parallel evaluation")
         gen = 0                                         # current generation
         for i in range(self.generation_number):
             gen += 1
+            gen_start_time = time.time()
+            print(f"\n--- Generation {gen}/{self.generation_number} ---")
 
+            print("  1. Parent selection...")
             parents = self.parent_selection(networks, crossover_number, population_size)       # parent selection
+            
+            print("  2. Children production...")
             children = self.children_production(crossover_number, parents)                     # children making
+            
+            print("  3. Mutation production...")
             mutations = self.mutation_production(networks, mutation_number, population_size)   # mutations making
 
+            print("  4. Population merging...")
             # Ensure networks is a list before concatenation
             networks = networks if networks is not None else []
             networks = networks + (children if children is not None else []) + \
                        (mutations if mutations is not None else [])                      # old population and new individuals
+            
+            print(f"  5. Evaluating {len(networks)} networks...")
+            eval_start = time.time()
             self.evaluation(networks, num_cores)                            # evaluation of neural nets
+            eval_time = time.time() - eval_start
+            print(f"     Evaluation completed in {eval_time:.2f}s")
+            
+            print("  6. Ranking and selection...")
             networks.sort(key=lambda Network: Network.score, reverse=True)  # ranking neural nets
             networks[0].save(name="gen_"+str(gen))                          # saving best of current generation
 
+            print("  7. Additional mutations...")
             for i in range(int(0.2*len(networks))):              # More random mutations because it helps
                 rand = randint(10, len(networks)-1)
                 networks[rand] = self.mutation(networks[rand])
 
             networks = networks[:population_size]       # Keeping only best individuals
+            
+            gen_time = time.time() - gen_start_time
             self.print_generation(networks, gen)
+            print(f"  Generation {gen} completed in {gen_time:.2f}s")
 
     def parent_selection(self, networks, crossover_number, population_size):
         """
@@ -134,11 +181,51 @@ class GeneticAlgorithm:
         :return: list of selected parents
         """
         parents = []
+        print(f"     Selecting {crossover_number} parents via tournament...")
+        start_time = time.time()
+        
+        # For MPS devices in hybrid mode, create CPU copies once for all tournaments
+        cpu_networks = None
+        if (self.use_torch and self.device and self.device.type == 'mps' 
+            and self.mps_tournament_mode == 'hybrid'):
+            print(f"       Creating CPU copies of {population_size} networks for tournaments...")
+            cpu_start = time.time()
+            cpu_device = torch.device('cpu')
+            cpu_networks = []
+            for net in networks:
+                cpu_net = net.clone()
+                cpu_net.to_device(cpu_device)
+                cpu_networks.append(cpu_net)
+            cpu_time = time.time() - cpu_start
+            print(f"       CPU copies created in {cpu_time:.2f}s")
+        
         for i in range(crossover_number):
-            parent = self.tournament(networks[randint(0, population_size - 1)],      # running tournament
-                                     networks[randint(0, population_size - 1)],
-                                     networks[randint(0, population_size - 1)])
-            parents.append(parent)                                                   # append selected parent
+            if i % 50 == 0 and i > 0:  # Progress update every 50 parents
+                elapsed = time.time() - start_time
+                print(f"       Selected {i}/{crossover_number} parents ({elapsed:.1f}s elapsed)")
+            
+            # Select random indices
+            idx1, idx2, idx3 = (randint(0, population_size - 1), 
+                               randint(0, population_size - 1), 
+                               randint(0, population_size - 1))
+            
+            # Use CPU copies for tournament if available, original networks otherwise
+            if cpu_networks:
+                winner_idx = self.tournament_with_cpu_nets(cpu_networks[idx1], cpu_networks[idx2], cpu_networks[idx3])
+                # Return the original MPS network corresponding to the winner
+                if winner_idx == 0:
+                    parent = networks[idx1]
+                elif winner_idx == 1:
+                    parent = networks[idx2]
+                else:
+                    parent = networks[idx3]
+            else:
+                parent = self.tournament(networks[idx1], networks[idx2], networks[idx3])
+                
+            parents.append(parent)
+        
+        elapsed = time.time() - start_time
+        print(f"     Parent selection completed in {elapsed:.2f}s")
         return parents
 
     def children_production(self, crossover_number, parents):
@@ -183,11 +270,23 @@ class GeneticAlgorithm:
         :param num_cores: Number of cores of your computer
         :return: Nothing but each neural_net in networks is now evaluated (in neural_net.score)
         """
+        # Use "threading" backend for better compatibility with MPS/CUDA
+        backend = "threading" if (self.use_torch and self.device and self.device.type in ['mps', 'cuda']) else "loky"
+        
+        print(f"     Running evaluation with {backend} backend...")
         game = Game()
-        results1 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
-        results2 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
-        results3 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
-        results4 = list(Parallel(n_jobs=num_cores)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
+        
+        # Run 4 rounds of evaluation
+        print("     Round 1/4...")
+        results1 = list(Parallel(n_jobs=num_cores, backend=backend)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
+        print("     Round 2/4...")
+        results2 = list(Parallel(n_jobs=num_cores, backend=backend)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
+        print("     Round 3/4...")
+        results3 = list(Parallel(n_jobs=num_cores, backend=backend)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
+        print("     Round 4/4...")
+        results4 = list(Parallel(n_jobs=num_cores, backend=backend)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
+        
+        print("     Calculating scores...")
         for i in range(len(results1)):
             # Filter out None values before calculating the mean
             scores = [score for score in [results1[i], results2[i], results3[i], results4[i]] if score is not None]
@@ -196,26 +295,63 @@ class GeneticAlgorithm:
     def tournament(self, net1, net2, net3):
         """
         Takes 3 neural nets, makes them play a game each and select the best performer
+        This method is used when not using MPS optimization
 
         :param net1: neural net (1st participant)
         :param net2: neural net (2nd participant)
         :param net3: last but not least, the third contender
         :return: the winning neural net
         """
-        game = Game()
-        game.start(display=False, neural_net=net1)                # net1 plays a game and so on..
+        # Cache Game object for better performance
+        if not hasattr(self, '_cached_game'):
+            self._cached_game = Game()
+        game = self._cached_game
+        
+        game.start(display=False, neural_net=net1)
         score1 = game.game_score
         game.start(display=False, neural_net=net2)
         score2 = game.game_score
         game.start(display=False, neural_net=net3)
         score3 = game.game_score
-        maxscore = max(score1, score2, score3)     # the best one is returned
+        
+        maxscore = max(score1, score2, score3)
         if maxscore == score1:
             return net1
         elif maxscore == score2:
             return net2
         else:
             return net3
+
+    def tournament_with_cpu_nets(self, net1, net2, net3):
+        """
+        Simplified tournament method for CPU networks (used for MPS optimization)
+        Returns the index of the winning network (0, 1, or 2)
+        
+        :param net1: CPU neural net (1st participant)
+        :param net2: CPU neural net (2nd participant) 
+        :param net3: CPU neural net (3rd participant)
+        :return: int index of winning network (0, 1, or 2)
+        """
+        # Cache Game object for better performance
+        if not hasattr(self, '_cached_game_cpu'):
+            self._cached_game_cpu = Game()
+        game = self._cached_game_cpu
+        
+        # Run tournaments with CPU networks
+        game.start(display=False, neural_net=net1)
+        score1 = game.game_score
+        game.start(display=False, neural_net=net2)
+        score2 = game.game_score
+        game.start(display=False, neural_net=net3)
+        score3 = game.game_score
+        
+        maxscore = max(score1, score2, score3)
+        if maxscore == score1:
+            return 0
+        elif maxscore == score2:
+            return 1
+        else:
+            return 2
 
     def crossover(self, net1, net2):
         """

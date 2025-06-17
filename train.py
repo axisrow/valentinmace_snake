@@ -26,13 +26,60 @@ except ImportError:
     TORCH_AVAILABLE = False
     print("PyTorch not available. Training will use CPU only.")
 
+def choose_device_interactive():
+    """
+    Интерактивный выбор устройства для обучения
+    """
+    print("\n" + "🚀" + " ВЫБОР УСТРОЙСТВА ДЛЯ ОБУЧЕНИЯ " + "🚀")
+    print("=" * 50)
+    
+    options = []
+    
+    # Проверяем доступные устройства
+    if TORCH_AVAILABLE:
+        if torch.cuda.is_available():
+            cuda_name = torch.cuda.get_device_name(0)
+            options.append(("cuda", f"🚀 NVIDIA GPU: {cuda_name}"))
+        if torch.backends.mps.is_available():
+            options.append(("mps", "🍎 Apple Silicon (MPS)"))
+    
+    options.append(("cpu", "💻 CPU только"))
+    options.append(("auto", "🤖 Автовыбор лучшего устройства"))
+    
+    print("\nДоступные устройства:")
+    for i, (device, desc) in enumerate(options, 1):
+        print(f"  {i}. {desc}")
+    
+    print("\nРекомендации:")
+    print("  • GPU (CUDA/MPS) - быстрее в 3-50 раз")
+    print("  • CPU - более стабильно, медленнее")
+    print("  • Автовыбор - выберет лучшее доступное")
+    
+    while True:
+        try:
+            choice = input(f"\nВаш выбор (1-{len(options)}): ").strip()
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(options):
+                device_choice = options[choice_num - 1][0]
+                device_name = options[choice_num - 1][1]
+                print(f"✅ Выбрано: {device_name}")
+                return device_choice
+            else:
+                print(f"❌ Введите число от 1 до {len(options)}")
+        except ValueError:
+            print("❌ Введите корректное число")
+        except KeyboardInterrupt:
+            print("\n\n👋 Обучение отменено")
+            exit(0)
+
 def parse_args():
     """
     Parse command line arguments
     """
     parser = argparse.ArgumentParser(description='Train Snake AI with GPU acceleration')
-    parser.add_argument('--device', type=str, choices=['auto', 'cuda', 'mps', 'cpu'], 
-                        default='auto', help='Device to use for training')
+    parser.add_argument('--device', type=str, choices=['auto', 'cuda', 'mps', 'cpu', 'interactive'], 
+                        default='interactive', help='Device to use: interactive (menu), auto, cuda, mps, cpu')
     parser.add_argument('--population-size', type=int, default=1000,
                         help='Number of networks per generation')
     parser.add_argument('--generations', type=int, default=100,
@@ -43,6 +90,8 @@ def parse_args():
                         help='Proportion of population to mutate')
     parser.add_argument('--no-gpu', action='store_true',
                         help='Force CPU-only training (disable GPU acceleration)')
+    parser.add_argument('--mps-tournament-mode', type=str, choices=['hybrid', 'full'], 
+                        default='hybrid', help='MPS tournament mode: hybrid (CPU tournaments) or full (MPS everywhere)')
     return parser.parse_args()
 
 def main():
@@ -60,11 +109,20 @@ def main():
     device = None
     use_torch = TORCH_AVAILABLE and not args.no_gpu
     
+    # Определяем устройство на основе аргументов
+    if args.device == 'interactive':
+        # Показываем интерактивное меню
+        device_choice = choose_device_interactive()
+    else:
+        # Используем устройство из командной строки
+        device_choice = args.device
+        print(f"Устройство выбрано из командной строки: {device_choice}")
+    
     if use_torch:
-        if args.device == 'auto':
+        if device_choice == 'auto':
             device = get_device()
         else:
-            device = get_device(args.device)
+            device = get_device(device_choice)
         print_device_info(device)
         
         if device.type in ['cuda', 'mps']:
@@ -90,7 +148,8 @@ def main():
         mutation_rate=args.mutation_rate,
         mutation_method='weight',
         device=device,
-        use_torch=use_torch
+        use_torch=use_torch,
+        mps_tournament_mode=args.mps_tournament_mode
     )
     
     # Start training
@@ -104,7 +163,7 @@ def main():
     print(f"Average time per generation: {total_time/args.generations:.2f} seconds")
     print("Best networks saved in current directory as gen_X_weights.npy and gen_X_biases.npy")
     
-    if use_torch and device.type in ['cuda', 'mps']:
+    if use_torch and device is not None and device.type in ['cuda', 'mps']:
         print(f"\n🎉 GPU acceleration helped speed up training!")
         print(f"Device used: {device}")
 

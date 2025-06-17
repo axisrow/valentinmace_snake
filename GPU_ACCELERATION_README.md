@@ -36,6 +36,12 @@ pip install -r requirements.txt
 
 ## Usage
 
+### Training vs Gaming Device Usage
+
+**Важно понимать разницу:**
+- 🏋️ **Во время тренировки** (train.py) - нейронные сети работают на GPU/MPS для ускорения
+- 🎮 **Во время игры** (main.py, network_loader.py) - нейронная сеть работает на выбранном устройстве
+
 ### Basic Training (Auto-detect device)
 ```bash
 python train.py
@@ -68,6 +74,16 @@ python train.py --population-size 2000 --generations 200 --device cuda
 - `--crossover-rate`: Proportion of children produced (default: 0.3)
 - `--mutation-rate`: Proportion of population to mutate (default: 0.7)
 - `--no-gpu`: Force CPU-only training
+
+### Playing with Trained Models
+
+```bash
+# Launch network loader (auto-detects best device)
+python network_loader.py
+
+# Play manually
+python main.py
+```
 
 ## Testing Compatibility
 

@@ -101,7 +101,11 @@ class Snake:
             # It will continue in its current direction.
             return
 
-        decision = np.argmax(self.neural_net.feed_forward(self.vision))
+        output = self.neural_net.feed_forward(self.vision)
+        # Handle both PyTorch tensors and NumPy arrays
+        if hasattr(output, 'detach'):  # PyTorch tensor
+            output = output.detach().cpu().numpy()
+        decision = np.argmax(output)
         if decision == 1:
             self.turn_right()
         elif decision == 2:

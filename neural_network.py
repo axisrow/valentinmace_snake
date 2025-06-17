@@ -22,8 +22,8 @@ import pygame
 from constants import *
 from pygame import gfxdraw
 try:
-    import torch
-    import torch.nn.functional as F
+    import torch # type: ignore
+    import torch.nn.functional as F # type: ignore
     from device_utils import get_device, tensor_to_device
     TORCH_AVAILABLE = True
 except ImportError:
@@ -41,8 +41,8 @@ class NeuralNetwork:
         :param use_torch: bool, whether to use PyTorch (None for auto-detect)
         """
         self.shape = shape
-        self.biases = []
-        self.weights = []
+        self.biases: list[torch.Tensor | np.ndarray] = []
+        self.weights: list[torch.Tensor | np.ndarray] = []
         self.score = 0        # to remember how well it performed
         
         # Determine if we should use PyTorch
@@ -97,7 +97,10 @@ class NeuralNetwork:
         if len(a.shape) == 1:
             a = a.unsqueeze(1)  # Add column dimension
         
-        for b, w in zip(self.biases, self.weights):
+        for b_item, w_item in zip(self.biases, self.weights):
+            # Explicitly cast to torch.Tensor for type checker
+            b = b_item if isinstance(b_item, torch.Tensor) else torch.tensor(b_item, device=self.device, dtype=torch.float32)
+            w = w_item if isinstance(w_item, torch.Tensor) else torch.tensor(w_item, device=self.device, dtype=torch.float32)
             a = torch.sigmoid(torch.mm(w, a) + b)
         return a
     
@@ -164,8 +167,8 @@ class NeuralNetwork:
         """
         if self.use_torch:
             self.device = device
-            self.weights = [w.to(device) for w in self.weights]
-            self.biases = [b.to(device) for b in self.biases]
+            self.weights = [w.to(device) for w in self.weights] # type: ignore
+            self.biases = [b.to(device) for b in self.biases] # type: ignore
     
     def clone(self):
         """
@@ -173,11 +176,12 @@ class NeuralNetwork:
         """
         new_net = NeuralNetwork(shape=self.shape, device=self.device, use_torch=self.use_torch)
         if self.use_torch:
-            new_net.weights = [w.clone() for w in self.weights]
-            new_net.biases = [b.clone() for b in self.biases]
+            new_net.weights = [w.clone() for w in self.weights] # type: ignore
+            new_net.biases = [b.clone() for b in self.biases] # type: ignore
         else:
-            new_net.weights = [w.copy() for w in self.weights]
-            new_net.biases = [b.copy() for b in self.biases]
+            # Explicitly cast to np.ndarray for type checker
+            new_net.weights = [w_item.copy() if isinstance(w_item, np.ndarray) else np.array(w_item).copy() for w_item in self.weights]
+            new_net.biases = [b_item.copy() if isinstance(b_item, np.ndarray) else np.array(b_item).copy() for b_item in self.biases]
         new_net.score = self.score
         return new_net
 
@@ -195,8 +199,8 @@ class NeuralNetwork:
         for i in range(len(self.biases)):
             if self.use_torch:
                 # Convert to numpy for rendering
-                w_np = self.weights[i].detach().cpu().numpy()
-                b_np = self.biases[i].detach().cpu().numpy()
+                w_np = self.weights[i].detach().cpu().numpy() # type: ignore
+                b_np = self.biases[i].detach().cpu().numpy() # type: ignore
                 activation = sigmoid(np.dot(w_np, network[i]) + b_np)
             else:
                 activation = sigmoid(np.dot(self.weights[i], network[i]) + self.biases[i])  # compute neurons activations

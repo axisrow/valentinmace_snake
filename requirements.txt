@@ -1,14 +1,5 @@
-torch>=2.0.0
-numpy>=1.21.0
-pygame>=2.0.0
-numba>=0.56.0
-joblib>=1.0.0
-
-# For CUDA support (NVIDIA GPUs):
-# Install with: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-
-# For MPS support (Apple Silicon):
-# MPS support is included in PyTorch 2.0+ by default
-
-# For CPU-only:
-# Install with: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+torch
+numpy
+pygame
+numba
+joblib

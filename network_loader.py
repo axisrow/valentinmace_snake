@@ -13,6 +13,12 @@ import os
 import sys
 from neural_network import NeuralNetwork
 from game import Game
+try:
+    from device_utils import get_device, print_device_info
+    import torch # type: ignore
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 
 class NetworkLoader:
@@ -21,7 +27,23 @@ class NetworkLoader:
     def __init__(self, versions_folder="versions"):
         self.versions_folder = versions_folder
         self.available_networks = {}
+        self.device = None
+        self.use_torch = False
+        self.setup_device()
         self.scan_networks()
+    
+    def setup_device(self):
+        """Setup device for neural network execution"""
+        if TORCH_AVAILABLE:
+            try:
+                self.device = get_device()
+                self.use_torch = True
+                print(f"🚀 GPU acceleration available: {self.device}")
+            except Exception:
+                self.use_torch = False
+                print("💻 Using CPU for neural network execution")
+        else:
+            print("💻 PyTorch not available - using CPU only")
     
     def scan_networks(self):
         """Scan the versions folder for available neural networks"""
@@ -67,6 +89,11 @@ class NetworkLoader:
         
         print("\n" + "="*50)
         print("🐍 SNAKE AI - NEURAL NETWORK LOADER")
+        print("="*50)
+        if self.use_torch and self.device is not None and self.device.type != 'cpu':
+            print(f"🚀 GPU Acceleration: {self.device}")
+        else:
+            print("💻 Running on CPU")
         print("="*50)
         print("\nAvailable Neural Networks:")
         print("-" * 30)
@@ -121,11 +148,12 @@ class NetworkLoader:
         try:
             network_info = self.available_networks[network_key]
             
-            # Create neural network and load weights/biases
-            neural_net = NeuralNetwork([21, 16, 3])  # Default shape
+            # Create neural network with device support
+            neural_net = NeuralNetwork([21, 16, 3], device=self.device, use_torch=self.use_torch)
             neural_net.load(network_info['weights'], network_info['biases'])
             
-            print(f"✅ Successfully loaded: {network_info['display_name']}")
+            device_info = f" (GPU: {self.device})" if self.use_torch and self.device is not None and self.device.type != 'cpu' else " (CPU)"
+            print(f"✅ Successfully loaded: {network_info['display_name']}{device_info}")
             return neural_net
             
         except Exception as e:
