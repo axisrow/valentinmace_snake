@@ -24,13 +24,20 @@ import numpy as np # Explicitly import numpy
 from game import*
 from neural_network import *
 from joblib import Parallel, delayed
+try:
+    import torch
+    from device_utils import get_device, print_device_info
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 
 class GeneticAlgorithm:
     """ Genetic Algorithm Class """
 
     def __init__(self, networks=None, networks_shape=None, population_size=1000, generation_number = 100,
-                 crossover_rate=0.3, crossover_method='neuron', mutation_rate=0.7, mutation_method='weight'):
+                 crossover_rate=0.3, crossover_method='neuron', mutation_rate=0.7, mutation_method='weight',
+                 device=None, use_torch=None):
         """
         :param networks(list of NeuralNetwork): First generation networks
         :param networks_shape(list of int): List defining number of layers and number of neurons in each layer
@@ -40,16 +47,31 @@ class GeneticAlgorithm:
         :param crossover_method(str): How children will be produced
         :param mutation_rate(int): Proportion of the population to mutate at each generation
         :param mutation_method(str): How mutation will be done
+        :param device: torch.device, device to use for GPU acceleration
+        :param use_torch: bool, whether to use PyTorch for acceleration
         """
         self.networks_shape = networks_shape
         if self.networks_shape is None:             # if no shape is provided
             self.networks_shape = [21,16,3]         # default shape
+        
+        # Setup device and PyTorch usage
+        if use_torch is None:
+            self.use_torch = TORCH_AVAILABLE
+        else:
+            self.use_torch = use_torch and TORCH_AVAILABLE
+        
+        if self.use_torch:
+            self.device = device if device else get_device()
+            print_device_info(self.device)
+        else:
+            self.device = None
+            
         self.networks = networks
 
         if networks is None:                                  # if no networks are provided
             self.networks = []
             for i in range(population_size):                  # producing population
-                self.networks.append(NeuralNetwork(self.networks_shape))
+                self.networks.append(NeuralNetwork(self.networks_shape, device=self.device, use_torch=self.use_torch))
 
         self.population_size = population_size
         self.generation_number = generation_number
@@ -212,34 +234,54 @@ class GeneticAlgorithm:
         :param net2: neural net (second parent)
         :return: neural net (child)
         """
-        res1 = copy.deepcopy(net1)                 # making copies (children) otherwise we manipulate the actual parents
-        res2 = copy.deepcopy(net2)
+        res1 = net1.clone()                 # making copies (children) using optimized clone method
+        res2 = net2.clone()
         weights_or_biases = random.randint(0, 1)   # choosing randomly if crossover is over bias or weight/neuron/layer
         if weights_or_biases == 0:                 # crossover over weight/neuron/layer
             if self.crossover_method == 'weight':
                 layer = random.randint(0, len(res1.weights) - 1)                            # random layer
                 neuron = random.randint(0, len(res1.weights[layer]) - 1)                    # random neuron
                 weight = random.randint(0, len(res1.weights[layer][neuron]) - 1)            # random weight
-                temp = res1.weights[layer][neuron][weight]                                  # switching weights
-                res1.weights[layer][neuron][weight] = res2.weights[layer][neuron][weight]
-                res2.weights[layer][neuron][weight] = temp
+                if self.use_torch:
+                    temp = res1.weights[layer][neuron][weight].clone()    # switching weights for PyTorch
+                    res1.weights[layer][neuron][weight] = res2.weights[layer][neuron][weight].clone()
+                    res2.weights[layer][neuron][weight] = temp
+                else:
+                    temp = res1.weights[layer][neuron][weight]                                  # switching weights
+                    res1.weights[layer][neuron][weight] = res2.weights[layer][neuron][weight]
+                    res2.weights[layer][neuron][weight] = temp
             elif self.crossover_method == 'neuron':
                 layer = random.randint(0, len(res1.weights) - 1)                            # random layer
                 neuron = random.randint(0, len(res1.weights[layer]) - 1)                    # random neuron
-                temp = copy.deepcopy(res1)                                                  # switching neurons
-                res1.weights[layer][neuron] = res2.weights[layer][neuron]
-                res2.weights[layer][neuron] = temp.weights[layer][neuron]
+                if self.use_torch:
+                    temp = res1.weights[layer][neuron].clone()                                 # switching neurons for PyTorch
+                    res1.weights[layer][neuron] = res2.weights[layer][neuron].clone()
+                    res2.weights[layer][neuron] = temp
+                else:
+                    temp = copy.deepcopy(res1)                                                  # switching neurons
+                    res1.weights[layer][neuron] = res2.weights[layer][neuron]
+                    res2.weights[layer][neuron] = temp.weights[layer][neuron]
             elif self.crossover_method == 'layer':
                 layer = random.randint(0, len(res1.weights) - 1)                            # random layer
-                temp = copy.deepcopy(res1)                                                  # switching layers
-                res1.weights[layer] = res2.weights[layer]
-                res2.weights[layer] = temp.weights[layer]
+                if self.use_torch:
+                    temp = res1.weights[layer].clone()                                         # switching layers for PyTorch
+                    res1.weights[layer] = res2.weights[layer].clone()
+                    res2.weights[layer] = temp
+                else:
+                    temp = copy.deepcopy(res1)                                                  # switching layers
+                    res1.weights[layer] = res2.weights[layer]
+                    res2.weights[layer] = temp.weights[layer]
         else:                                                       # crossover over bias
             layer = random.randint(0, len(res1.biases) - 1)         # random layer
             bias = random.randint(0, len(res1.biases[layer]) - 1)   # random bias
-            temp = copy.deepcopy(res1)                              # switching biases
-            res1.biases[layer][bias] = res2.biases[layer][bias]
-            res2.biases[layer][bias] = temp.biases[layer][bias]
+            if self.use_torch:
+                temp = res1.biases[layer][bias].clone()                # switching biases for PyTorch
+                res1.biases[layer][bias] = res2.biases[layer][bias].clone()
+                res2.biases[layer][bias] = temp
+            else:
+                temp = copy.deepcopy(res1)                              # switching biases
+                res1.biases[layer][bias] = res2.biases[layer][bias]
+                res2.biases[layer][bias] = temp.biases[layer][bias]
 
         game = Game()
         game.start(display=False, neural_net=res1)     # child 1 plays a game
@@ -259,23 +301,33 @@ class GeneticAlgorithm:
         :param net: neural network that will be cloned
         :return: neural network similar to the net param except where the mutation occurred
         """
-        res = copy.deepcopy(net)                    # making copy otherwise we manipulate the actual net in params
+        res = net.clone()                    # making copy using optimized clone method
         weights_or_biases = random.randint(0, 1)    # choosing randomly if mutation is over bias or weight/neuron
         if weights_or_biases == 0:                  # mutation over weight/neuron
             if self.mutation_method == 'weight':
                 layer = random.randint(0, len(res.weights) - 1)                  # random layer
                 neuron = random.randint(0, len(res.weights[layer]) - 1)          # random neuron
                 weight = random.randint(0, len(res.weights[layer][neuron]) - 1)  # random weight
-                res.weights[layer][neuron][weight] = np.random.randn()           # mutation
+                if self.use_torch:
+                    res.weights[layer][neuron][weight] = torch.randn(1, device=self.device, dtype=torch.float32).squeeze()  # mutation for PyTorch
+                else:
+                    res.weights[layer][neuron][weight] = np.random.randn()           # mutation
             elif self.mutation_method == 'neuron':
                 layer = random.randint(0, len(res.weights) - 1)                  # same logic here
                 neuron = random.randint(0, len(res.weights[layer]) - 1)
-                new_neuron = np.random.randn(len(res.weights[layer][neuron]))
-                res.weights[layer][neuron] = new_neuron
+                if self.use_torch:
+                    neuron_size = res.weights[layer][neuron].shape[0]
+                    res.weights[layer][neuron] = torch.randn(neuron_size, device=self.device, dtype=torch.float32)
+                else:
+                    new_neuron = np.random.randn(len(res.weights[layer][neuron]))
+                    res.weights[layer][neuron] = new_neuron
         else:                                                      # mutation over bias
             layer = random.randint(0, len(res.biases) - 1)         # random layer
             bias = random.randint(0, len(res.biases[layer]) - 1)   # random bias
-            res.weights[layer][bias] = np.random.randn()           # mutation
+            if self.use_torch:
+                res.biases[layer][bias] = torch.randn(1, device=self.device, dtype=torch.float32).squeeze()  # mutation for PyTorch
+            else:
+                res.biases[layer][bias] = np.random.randn()           # mutation
         return res
 
     def print_generation(self, networks, gen):

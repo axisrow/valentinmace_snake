@@ -15,34 +15,117 @@ import os
 os.environ['SDL_VIDEODRIVER'] = 'dummy'  # Disable pygame video
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'  # Hide pygame messages
 
+import argparse
+import time
 from genetic_algorithm import GeneticAlgorithm
+try:
+    from device_utils import get_device, print_device_info
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    print("PyTorch not available. Training will use CPU only.")
+
+def parse_args():
+    """
+    Parse command line arguments
+    """
+    parser = argparse.ArgumentParser(description='Train Snake AI with GPU acceleration')
+    parser.add_argument('--device', type=str, choices=['auto', 'cuda', 'mps', 'cpu'], 
+                        default='auto', help='Device to use for training')
+    parser.add_argument('--population-size', type=int, default=1000,
+                        help='Number of networks per generation')
+    parser.add_argument('--generations', type=int, default=100,
+                        help='Number of generations to train')
+    parser.add_argument('--crossover-rate', type=float, default=0.3,
+                        help='Proportion of children produced')
+    parser.add_argument('--mutation-rate', type=float, default=0.7,
+                        help='Proportion of population to mutate')
+    parser.add_argument('--no-gpu', action='store_true',
+                        help='Force CPU-only training (disable GPU acceleration)')
+    return parser.parse_args()
 
 def main():
     """
     Main training function
     Runs genetic algorithm in headless mode (no display)
     """
+    args = parse_args()
+    
     print("Starting neural network training...")
     print("This will run in headless mode (no graphics)")
-    print("Training may take a long time depending on your CPU")
-    print("Results will be saved as gen_X_weights.npy and gen_X_biases.npy files")
+    print("-" * 60)
+    
+    # Device setup
+    device = None
+    use_torch = TORCH_AVAILABLE and not args.no_gpu
+    
+    if use_torch:
+        if args.device == 'auto':
+            device = get_device()
+        else:
+            device = get_device(args.device)
+        print_device_info(device)
+        
+        if device.type in ['cuda', 'mps']:
+            print(f"🚀 GPU acceleration enabled! Expected speedup: {get_speedup_estimate(device.type)}")
+        else:
+            print("ℹ️  Using CPU (consider installing PyTorch with CUDA/MPS for faster training)")
+    else:
+        print("ℹ️  Using CPU only (PyTorch not available or disabled)")
+    
+    print(f"Population size: {args.population_size}")
+    print(f"Generations: {args.generations}")
+    print(f"Crossover rate: {args.crossover_rate}")
+    print(f"Mutation rate: {args.mutation_rate}")
     print("-" * 60)
     
     # Create genetic algorithm with optimized parameters
+    start_time = time.time()
     gen = GeneticAlgorithm(
-        population_size=1000,           # Number of networks per generation
-        generation_number=100,          # Number of generations to train
-        crossover_rate=0.3,            # Proportion of children produced
-        crossover_method='neuron',      # How children are produced
-        mutation_rate=0.7,             # Proportion of population to mutate
-        mutation_method='weight'        # How mutation is done
+        population_size=args.population_size,
+        generation_number=args.generations,
+        crossover_rate=args.crossover_rate,
+        crossover_method='neuron',
+        mutation_rate=args.mutation_rate,
+        mutation_method='weight',
+        device=device,
+        use_torch=use_torch
     )
     
     # Start training
     gen.start()
     
-    print("\nTraining completed!")
+    # Performance summary
+    total_time = time.time() - start_time
+    print("\n" + "=" * 60)
+    print("Training completed!")
+    print(f"Total training time: {total_time:.2f} seconds ({total_time/60:.1f} minutes)")
+    print(f"Average time per generation: {total_time/args.generations:.2f} seconds")
     print("Best networks saved in current directory as gen_X_weights.npy and gen_X_biases.npy")
+    
+    if use_torch and device.type in ['cuda', 'mps']:
+        print(f"\n🎉 GPU acceleration helped speed up training!")
+        print(f"Device used: {device}")
+
+def get_speedup_estimate(device_type):
+    """
+    Provide rough speedup estimates for different devices
+    """
+    if device_type == 'cuda':
+        return "10-50x vs CPU"
+    elif device_type == 'mps':
+        return "3-10x vs CPU"
+    else:
+        return "1x (baseline)"
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\nTraining interrupted by user.")
+        print("Partial results may be saved in current directory.")
+    except Exception as e:
+        print(f"\n\nError during training: {e}")
+        print("Please check your PyTorch installation and GPU drivers.")
+        raise

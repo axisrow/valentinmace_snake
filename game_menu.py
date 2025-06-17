@@ -112,9 +112,9 @@ class GameMenu:
         for event in events:
             for button in self.buttons:
                 if button.handle_event(event):
-                    if hasattr(button, 'network_key'):
+                    if button.network_key is not None:
                         return 'network', button.network_key
-                    elif hasattr(button, 'action'):
+                    elif button.action is not None:
                         return button.action, None
         return None, None
     

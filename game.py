@@ -89,33 +89,57 @@ class Game:
     def run_visible(self, neural_net, speed=20):
         """
         Runs a displayed game played by a neural network.
+        Enhanced with proper pygame cleanup to prevent hanging.
 
         :param neural_net: NeuralNetwork to provide for the game
         :param speed: game speed
         :return: int score achieved
         """
-        self.score = 0                                                              # reset score for new game
-        pygame.init()                                                               # pygame initialization
-        game_window = pygame.display.set_mode((int(WINDOW_SIZE*2), WINDOW_SIZE))    # opens window
-        pygame.display.set_caption(WINDOW_TITLE)
+        pygame_initialized = False
+        try:
+            self.score = 0                                                              # reset score for new game
+            pygame.init()                                                               # pygame initialization
+            pygame_initialized = True
+            game_window = pygame.display.set_mode((int(WINDOW_SIZE*2), WINDOW_SIZE))    # opens window
+            pygame.display.set_caption(WINDOW_TITLE)
 
-        snake = Snake(neural_net=neural_net)
-        map = Map(snake, self)
+            snake = Snake(neural_net=neural_net)
+            map = Map(snake, self)
 
-        cont = [True]
-        while cont[0]:                               # main game loop
-            pygame.time.Clock().tick(speed)             # display speed
-            self.inputs_management(cont)                # inputs handling (for quitting)
-            map.scan()                                  # gives vision to the snake
-            snake.AI()                                  # snake makes decision
-            self.render(game_window, map)               # render the game
-            snake.update()
-            map.update()
-            if not snake.alive:
-                cont[0] = False
+            cont = [True]
+            clock = pygame.time.Clock()  # Create clock object once
+            
+            while cont[0]:                               # main game loop
+                clock.tick(speed)                           # display speed control
+                self.inputs_management(cont)                # inputs handling (for quitting)
+                
+                # Only continue game logic if still running
+                if not cont[0]:
+                    break
+                    
+                map.scan()                                  # gives vision to the snake
+                snake.AI()                                  # snake makes decision
+                self.render(game_window, map)               # render the game
+                snake.update()
+                map.update()
+                
+                if not snake.alive:
+                    cont[0] = False
 
-        self.game_score = snake.fitness()            # if the game is over, returns the score
-        return self.game_score
+            self.game_score = snake.fitness()            # if the game is over, returns the score
+            return self.game_score
+            
+        except Exception as e:
+            print(f"Error in run_visible: {e}")
+            return 0
+        finally:
+            # Safe pygame cleanup
+            if pygame_initialized:
+                try:
+                    pygame.display.quit()  # Close display first
+                    pygame.quit()          # Then quit pygame
+                except:
+                    pass  # Ignore cleanup errors
 
     def run_with_menu(self, speed=20):
         """
@@ -166,14 +190,18 @@ class Game:
 
     def inputs_management(self, cont):
         """
-        Keyboard inputs management (for quitting the game).
+        Enhanced keyboard and window event management (for quitting the game).
+        Handles both ESC key and window close button properly.
         """
         for event in pygame.event.get():
             if event.type == QUIT:
+                # Window close button clicked - exit immediately
                 cont[0] = False
+                return  # Early return to prevent further event processing
             elif event.type == KEYDOWN:
-                if event.key == K_ESCAPE:       # escape
+                if event.key == K_ESCAPE:       # escape key
                     cont[0] = False
+                    return  # Early return for immediate exit
 
     def render(self, window, map):
         """
