@@ -1,0 +1,136 @@
+# Benchmark small networks
+# Command: python3 benchmark_devices.py --network-size small --operations 500
+# Started: 2025-06-17 10:29:55.314891
+# ==================================================
+
+🔬 DEVICE PERFORMANCE BENCHMARK
+==================================================
+Network shape: [21, 16, 3]
+Total parameters: ~384
+Operations: 500
+
+
+🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁
+CPU vs MPS PERFORMANCE COMPARISON
+🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁🏁
+
+🔬 BENCHMARKING CPU PERFORMANCE
+Network shape: [21, 16, 3]
+Operations: 500
+--------------------------------------------------
+
+============================================================
+PERFORMANCE PROFILING SUMMARY
+============================================================
+
+feed_forward:
+  Count: 500
+  Total: 0.003s
+  Mean:  0.000s
+  Min:   0.000s
+  Max:   0.000s
+
+network_clone:
+  Count: 1
+  Total: 0.000s
+  Mean:  0.000s
+  Min:   0.000s
+  Max:   0.000s
+
+network_creation:
+  Count: 1
+  Total: 0.001s
+  Mean:  0.001s
+  Min:   0.001s
+  Max:   0.001s
+
+Total measured time: 0.004s
+============================================================
+
+🔬 BENCHMARKING MPS PERFORMANCE
+Network shape: [21, 16, 3]
+Operations: 500
+--------------------------------------------------
+
+============================================================
+PERFORMANCE PROFILING SUMMARY
+============================================================
+
+device_transfer_to_cpu:
+  Count: 1
+  Total: 0.017s
+  Mean:  0.017s
+  Min:   0.017s
+  Max:   0.017s
+
+device_transfer_to_gpu:
+  Count: 1
+  Total: 0.016s
+  Mean:  0.016s
+  Min:   0.016s
+  Max:   0.016s
+
+feed_forward:
+  Count: 500
+  Total: 0.303s
+  Mean:  0.001s
+  Min:   0.000s
+  Max:   0.003s
+
+gpu_sync:
+  Count: 500
+  Total: 0.204s
+  Mean:  0.000s
+  Min:   0.000s
+  Max:   0.002s
+
+network_clone:
+  Count: 1
+  Total: 0.004s
+  Mean:  0.004s
+  Min:   0.004s
+  Max:   0.004s
+
+network_creation:
+  Count: 1
+  Total: 0.199s
+  Mean:  0.199s
+  Min:   0.199s
+  Max:   0.199s
+
+Total measured time: 0.744s
+============================================================
+
+📊 COMPARISON RESULTS
+--------------------------------------------------
+
+feed_forward:
+  CPU mean: 0.000006s
+  MPS mean: 0.000607s
+  Speedup: 0.01x (CPU faster)
+
+network_creation:
+  CPU mean: 0.000902s
+  MPS mean: 0.199332s
+  Speedup: 0.00x (CPU faster)
+
+network_clone:
+  CPU mean: 0.000401s
+  MPS mean: 0.004456s
+  Speedup: 0.09x (CPU faster)
+
+📝 ANALYSIS:
+------------------------------
+If CPU is faster:
+  • Network too small for GPU overhead
+  • MPS initialization cost > computation gain
+  • Memory transfer overhead dominates
+
+If MPS is faster:
+  • GPU parallelization effective
+  • Network size optimal for MPS
+  • Memory bandwidth advantage
+
+
+# Exit code: 0
+# Finished: 2025-06-17 10:29:59.732086

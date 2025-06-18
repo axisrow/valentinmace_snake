@@ -51,8 +51,8 @@ def choose_device_interactive():
         print(f"  {i}. {desc}")
     
     print("\nРекомендации:")
-    print("  • GPU (CUDA/MPS) - быстрее в 3-50 раз")
-    print("  • CPU - более стабильно, медленнее")
+    print("  • GPU (CUDA/MPS) - быстрее для больших сетей")
+    print("  • CPU - оптимально для малых сетей")
     print("  • Автовыбор - выберет лучшее доступное")
     
     while True:
@@ -65,6 +65,67 @@ def choose_device_interactive():
                 device_name = options[choice_num - 1][1]
                 print(f"✅ Выбрано: {device_name}")
                 return device_choice
+            else:
+                print(f"❌ Введите число от 1 до {len(options)}")
+        except ValueError:
+            print("❌ Введите корректное число")
+        except KeyboardInterrupt:
+            print("\n\n👋 Обучение отменено")
+            exit(0)
+
+def choose_network_size_interactive():
+    """
+    Интерактивный выбор размера нейронной сети
+    """
+    print("\n" + "🧠" + " ВЫБОР РАЗМЕРА НЕЙРОННОЙ СЕТИ " + "🧠")
+    print("=" * 50)
+    
+    options = [
+        ("small", "🐁 Маленькая: 21→16→3 (~400 параметров)", [21, 16, 3]),
+        ("medium", "🐕 Средняя: 21→64→32→3 (~3,488 параметров)", [21, 64, 32, 3]),
+        ("large", "🐘 Большая: 21→128→64→32→3 (~13,024 параметров)", [21, 128, 64, 32, 3]),
+        ("custom", "🔧 Пользовательская архитектура", None)
+    ]
+    
+    print("\nДоступные размеры:")
+    for i, (size, desc, _) in enumerate(options, 1):
+        print(f"  {i}. {desc}")
+    
+    print("\nРекомендации по выбору размера:")
+    print("  • 🐁 Маленькая - быстрое обучение, хорошо для CPU")
+    print("  • 🐕 Средняя - баланс скорости и качества, эффективна на GPU")
+    print("  • 🐘 Большая - лучшие результаты, требует GPU")
+    print("  • 🔧 Пользовательская - для экспериментов")
+    
+    while True:
+        try:
+            choice = input(f"\nВаш выбор (1-{len(options)}): ").strip()
+            choice_num = int(choice)
+            
+            if 1 <= choice_num <= len(options):
+                size_choice, desc, shape = options[choice_num - 1]
+                
+                if size_choice == "custom":
+                    print("\nВведите архитектуру сети через запятую")
+                    print("Пример: 21,64,64,32,3")
+                    custom_input = input("Архитектура: ").strip()
+                    try:
+                        shape = [int(x) for x in custom_input.split(',')]
+                        if len(shape) < 2:
+                            print("❌ Нужно минимум 2 слоя")
+                            continue
+                        if shape[0] != 21:
+                            print("⚠️  Входной слой изменён с 21 на", shape[0])
+                        if shape[-1] != 3:
+                            print("⚠️  Выходной слой изменён с 3 на", shape[-1])
+                    except:
+                        print("❌ Неверный формат. Используйте числа через запятую")
+                        continue
+                
+                total_params = sum(shape[i] * shape[i+1] for i in range(len(shape)-1))
+                print(f"\n✅ Выбрана архитектура: {' → '.join(map(str, shape))}")
+                print(f"   Всего параметров: ~{total_params:,}")
+                return size_choice, shape
             else:
                 print(f"❌ Введите число от 1 до {len(options)}")
         except ValueError:
@@ -92,6 +153,12 @@ def parse_args():
                         help='Force CPU-only training (disable GPU acceleration)')
     parser.add_argument('--mps-tournament-mode', type=str, choices=['hybrid', 'full'], 
                         default='hybrid', help='MPS tournament mode: hybrid (CPU tournaments) or full (MPS everywhere)')
+    parser.add_argument('--profile', action='store_true',
+                        help='Enable detailed performance profiling')
+    parser.add_argument('--network-size', type=str, choices=['small', 'medium', 'large', 'custom'], 
+                        default='small', help='Neural network size: small (21,16,3), medium (21,64,32,3), large (21,128,64,32,3)')
+    parser.add_argument('--custom-layers', type=str, 
+                        help='Custom network layers (e.g., "21,64,64,32,3")')
     return parser.parse_args()
 
 def main():
@@ -132,6 +199,32 @@ def main():
     else:
         print("ℹ️  Using CPU only (PyTorch not available or disabled)")
     
+    # Determine network shape
+    network_shapes = {
+        'small': [21, 16, 3],           # Original: ~400 parameters
+        'medium': [21, 64, 32, 3],      # Medium: ~3,488 parameters  
+        'large': [21, 128, 64, 32, 3]   # Large: ~13,024 parameters
+    }
+    
+    # Интерактивный выбор размера сети если device был interactive
+    if args.device == 'interactive':
+        size_choice, network_shape = choose_network_size_interactive()
+    elif args.network_size == 'custom' and args.custom_layers:
+        try:
+            network_shape = [int(x) for x in args.custom_layers.split(',')]
+            if len(network_shape) < 2:
+                raise ValueError("Need at least 2 layers")
+        except:
+            print("❌ Invalid custom layers format. Using small network.")
+            network_shape = network_shapes['small']
+    else:
+        network_shape = network_shapes.get(args.network_size, network_shapes['small'])
+    
+    # Calculate total parameters
+    total_params = sum(network_shape[i] * network_shape[i+1] for i in range(len(network_shape)-1))
+    
+    print(f"Network architecture: {' → '.join(map(str, network_shape))}")
+    print(f"Total parameters: ~{total_params:,}")
     print(f"Population size: {args.population_size}")
     print(f"Generations: {args.generations}")
     print(f"Crossover rate: {args.crossover_rate}")
@@ -141,6 +234,7 @@ def main():
     # Create genetic algorithm with optimized parameters
     start_time = time.time()
     gen = GeneticAlgorithm(
+        networks_shape=network_shape,
         population_size=args.population_size,
         generation_number=args.generations,
         crossover_rate=args.crossover_rate,
@@ -149,7 +243,8 @@ def main():
         mutation_method='weight',
         device=device,
         use_torch=use_torch,
-        mps_tournament_mode=args.mps_tournament_mode
+        mps_tournament_mode=args.mps_tournament_mode,
+        enable_profiling=args.profile
     )
     
     # Start training

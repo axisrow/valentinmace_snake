@@ -1,0 +1,127 @@
+# CPU Training (1 generation)
+# Command: python3 train.py --profile --device cpu --generations 1 --population-size 300
+# Started: 2025-06-17 10:30:06.938169
+# ==================================================
+
+Starting neural network training...
+This will run in headless mode (no graphics)
+------------------------------------------------------------
+Устройство выбрано из командной строки: cpu
+Using device: CPU (CPU)
+ℹ️  Using CPU (consider installing PyTorch with CUDA/MPS for faster training)
+Population size: 300
+Generations: 1
+Crossover rate: 0.3
+Mutation rate: 0.7
+------------------------------------------------------------
+Using device: CPU (CPU)
+Creating initial population of 300 neural networks...
+  Created 100/300 networks (0.0s elapsed)
+  Created 200/300 networks (0.0s elapsed)
+✓ Population created in 0.01 seconds
+Using 8 cores for parallel evaluation
+
+--- Generation 1/1 ---
+  1. Parent selection...
+     Selecting 90 parents via tournament...
+       Selected 50/90 parents (0.2s elapsed)
+     Parent selection completed in 0.34s
+  2. Children production...
+  3. Mutation production...
+  4. Population merging...
+  5. Evaluating 600 networks...
+     Running evaluation with loky backend...
+     Round 1/4...
+     Round 2/4...
+     Round 3/4...
+     Round 4/4...
+     Calculating scores...
+     Evaluation completed in 9.14s
+  6. Ranking and selection...
+  7. Additional mutations...
+
+Best Fitness gen 1  :  13176
+Pop size =  300
+Average top 6 =  8639
+Average last 6 =  64
+  Generation 1 completed in 9.84s
+
+============================================================
+PERFORMANCE PROFILING SUMMARY
+============================================================
+
+evaluation_round_1:
+  Count: 1
+  Total: 7.562s
+  Mean:  7.562s
+  Min:   7.562s
+  Max:   7.562s
+
+evaluation_round_2:
+  Count: 1
+  Total: 0.566s
+  Mean:  0.566s
+  Min:   0.566s
+  Max:   0.566s
+
+evaluation_round_3:
+  Count: 1
+  Total: 0.492s
+  Mean:  0.492s
+  Min:   0.492s
+  Max:   0.492s
+
+evaluation_round_4:
+  Count: 1
+  Total: 0.518s
+  Mean:  0.518s
+  Min:   0.518s
+  Max:   0.518s
+
+evaluation_total:
+  Count: 1
+  Total: 9.143s
+  Mean:  9.143s
+  Min:   9.143s
+  Max:   9.143s
+
+population_creation:
+  Count: 1
+  Total: 0.005s
+  Mean:  0.005s
+  Min:   0.005s
+  Max:   0.005s
+
+score_calculation:
+  Count: 1
+  Total: 0.005s
+  Mean:  0.005s
+  Min:   0.005s
+  Max:   0.005s
+
+single_network_creation:
+  Count: 300
+  Total: 0.005s
+  Mean:  0.000s
+  Min:   0.000s
+  Max:   0.000s
+
+tournament_native:
+  Count: 90
+  Total: 0.343s
+  Mean:  0.004s
+  Min:   0.000s
+  Max:   0.038s
+
+Total measured time: 18.638s
+============================================================
+
+============================================================
+Training completed!
+Total training time: 9.84 seconds (0.2 minutes)
+Average time per generation: 9.84 seconds
+Best networks saved in current directory as gen_X_weights.npy and gen_X_biases.npy
+
+
+# Exit code: 0
+# Finished: 2025-06-17 10:30:20.037167

@@ -1,0 +1,25 @@
+{
+  "timestamp": "2025-06-17T10:29:55.314770",
+  "tests": {
+    "benchmark_small": {
+      "success": true,
+      "log_file": "logs/benchmark_small.log"
+    },
+    "benchmark_medium": {
+      "success": true,
+      "log_file": "logs/benchmark_medium.log"
+    },
+    "benchmark_large": {
+      "success": true,
+      "log_file": "logs/benchmark_large.log"
+    },
+    "train_cpu": {
+      "success": true,
+      "log_file": "logs/train_cpu_1gen.log"
+    },
+    "train_mps": {
+      "success": true,
+      "log_file": "logs/train_mps_1gen.log"
+    }
+  }
+}

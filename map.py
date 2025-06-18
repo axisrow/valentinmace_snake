@@ -39,6 +39,14 @@ class Map:
         Takes the right action in case of collision
         """
         snake_head_x, snake_head_y = self.snake.head
+        
+        # Check if snake head is within map boundaries
+        if not (0 <= snake_head_x < SPRITE_NUMBER and 
+                0 <= snake_head_y < SPRITE_NUMBER):
+            # Snake is out of bounds - kill it
+            self.snake.alive = False
+            return
+            
         snake_pos = self.structure[snake_head_y][snake_head_x]
         if [snake_head_x, snake_head_y] == self.food:                   # if snake's head is on food
             self.snake.grow()                                           # snake grows and new food is created

@@ -1,0 +1,151 @@
+# MPS Training (1 generation)
+# Command: python3 train.py --profile --device mps --generations 1 --population-size 300
+# Started: 2025-06-17 10:30:20.037835
+# ==================================================
+
+Starting neural network training...
+This will run in headless mode (no graphics)
+------------------------------------------------------------
+Устройство выбрано из командной строки: mps
+Using device: Apple Metal Performance Shaders (MPS)
+Available memory: Shared with system memory
+🚀 GPU acceleration enabled! Expected speedup: 3-10x vs CPU
+Population size: 300
+Generations: 1
+Crossover rate: 0.3
+Mutation rate: 0.7
+------------------------------------------------------------
+Using device: Apple Metal Performance Shaders (MPS)
+Available memory: Shared with system memory
+MPS Tournament mode: hybrid
+  - Tournaments will run on CPU for stability
+  - Training operations will use MPS acceleration
+Creating initial population of 300 neural networks...
+  Created 100/300 networks (0.1s elapsed)
+  Created 200/300 networks (0.1s elapsed)
+✓ Population created in 0.14 seconds
+Using 4 cores for MPS device (limited for stability)
+
+--- Generation 1/1 ---
+  1. Parent selection...
+     Selecting 90 parents via tournament...
+       Creating CPU copies of 300 networks for tournaments...
+       CPU copies created in 0.48s
+       Selected 50/90 parents (0.9s elapsed)
+     Parent selection completed in 1.08s
+  2. Children production...
+  3. Mutation production...
+  4. Population merging...
+  5. Evaluating 600 networks...
+     Running evaluation with threading backend...
+     Round 1/4...
+     Round 2/4...
+     Round 3/4...
+     Round 4/4...
+     Calculating scores...
+     Evaluation completed in 24.01s
+  6. Ranking and selection...
+  7. Additional mutations...
+
+Best Fitness gen 1  :  3684
+Pop size =  300
+Average top 6 =  3062
+Average last 6 =  92
+  Generation 1 completed in 41.14s
+
+============================================================
+PERFORMANCE PROFILING SUMMARY
+============================================================
+
+cpu_copies_creation:
+  Count: 1
+  Total: 0.484s
+  Mean:  0.484s
+  Min:   0.484s
+  Max:   0.484s
+
+evaluation_round_1:
+  Count: 1
+  Total: 5.969s
+  Mean:  5.969s
+  Min:   5.969s
+  Max:   5.969s
+
+evaluation_round_2:
+  Count: 1
+  Total: 5.927s
+  Mean:  5.927s
+  Min:   5.927s
+  Max:   5.927s
+
+evaluation_round_3:
+  Count: 1
+  Total: 5.458s
+  Mean:  5.458s
+  Min:   5.458s
+  Max:   5.458s
+
+evaluation_round_4:
+  Count: 1
+  Total: 6.654s
+  Mean:  6.654s
+  Min:   6.654s
+  Max:   6.654s
+
+evaluation_total:
+  Count: 1
+  Total: 24.011s
+  Mean:  24.011s
+  Min:   24.011s
+  Max:   24.011s
+
+population_creation:
+  Count: 1
+  Total: 0.141s
+  Mean:  0.141s
+  Min:   0.141s
+  Max:   0.141s
+
+score_calculation:
+  Count: 1
+  Total: 0.003s
+  Mean:  0.003s
+  Min:   0.003s
+  Max:   0.003s
+
+single_cpu_copy:
+  Count: 300
+  Total: 0.483s
+  Mean:  0.002s
+  Min:   0.001s
+  Max:   0.014s
+
+single_network_creation:
+  Count: 300
+  Total: 0.140s
+  Mean:  0.000s
+  Min:   0.000s
+  Max:   0.084s
+
+tournament_cpu:
+  Count: 90
+  Total: 0.595s
+  Mean:  0.007s
+  Min:   0.000s
+  Max:   0.042s
+
+Total measured time: 49.865s
+============================================================
+
+============================================================
+Training completed!
+Total training time: 41.28 seconds (0.7 minutes)
+Average time per generation: 41.28 seconds
+Best networks saved in current directory as gen_X_weights.npy and gen_X_biases.npy
+
+🎉 GPU acceleration helped speed up training!
+Device used: mps
+
+
+# Exit code: 0
+# Finished: 2025-06-17 10:31:03.101008

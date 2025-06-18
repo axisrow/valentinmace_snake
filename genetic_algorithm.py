@@ -25,6 +25,7 @@ import numpy as np # Explicitly import numpy
 from game import*
 from neural_network import *
 from joblib import Parallel, delayed
+from performance_profiler import PerformanceProfiler
 try:
     import torch
     from device_utils import get_device, print_device_info
@@ -38,7 +39,7 @@ class GeneticAlgorithm:
 
     def __init__(self, networks=None, networks_shape=None, population_size=1000, generation_number = 100,
                  crossover_rate=0.3, crossover_method='neuron', mutation_rate=0.7, mutation_method='weight',
-                 device=None, use_torch=None, mps_tournament_mode='hybrid'):
+                 device=None, use_torch=None, mps_tournament_mode='hybrid', enable_profiling=False):
         """
         :param networks(list of NeuralNetwork): First generation networks
         :param networks_shape(list of int): List defining number of layers and number of neurons in each layer
@@ -51,7 +52,11 @@ class GeneticAlgorithm:
         :param device: torch.device, device to use for GPU acceleration
         :param use_torch: bool, whether to use PyTorch for acceleration
         :param mps_tournament_mode: str, 'hybrid' (CPU for tournaments, MPS for training) or 'full' (MPS everywhere)
+        :param enable_profiling: bool, enable detailed performance profiling
         """
+        # Initialize profiler
+        self.profiler = PerformanceProfiler(enabled=enable_profiling)
+        
         self.networks_shape = networks_shape
         if self.networks_shape is None:             # if no shape is provided
             self.networks_shape = [21,16,3]         # default shape
@@ -82,17 +87,20 @@ class GeneticAlgorithm:
         if networks is None:                                  # if no networks are provided
             self.networks = []
             print(f"Creating initial population of {population_size} neural networks...")
-            start_time = time.time()
             
-            for i in range(population_size):                  # producing population
-                if i % 100 == 0 and i > 0:  # Progress update every 100 networks
-                    elapsed = time.time() - start_time
-                    print(f"  Created {i}/{population_size} networks ({elapsed:.1f}s elapsed)")
+            with self.profiler.timer('population_creation'):
+                start_time = time.time()
                 
-                self.networks.append(NeuralNetwork(self.networks_shape, device=self.device, use_torch=self.use_torch))
-            
-            elapsed = time.time() - start_time
-            print(f"✓ Population created in {elapsed:.2f} seconds")
+                for i in range(population_size):                  # producing population
+                    if i % 100 == 0 and i > 0:  # Progress update every 100 networks
+                        elapsed = time.time() - start_time
+                        print(f"  Created {i}/{population_size} networks ({elapsed:.1f}s elapsed)")
+                    
+                    with self.profiler.timer('single_network_creation'):
+                        self.networks.append(NeuralNetwork(self.networks_shape, device=self.device, use_torch=self.use_torch))
+                
+                elapsed = time.time() - start_time
+                print(f"✓ Population created in {elapsed:.2f} seconds")
 
         self.population_size = population_size
         self.generation_number = generation_number
@@ -169,6 +177,10 @@ class GeneticAlgorithm:
             gen_time = time.time() - gen_start_time
             self.print_generation(networks, gen)
             print(f"  Generation {gen} completed in {gen_time:.2f}s")
+        
+        # Print profiling summary if enabled
+        if self.profiler.enabled:
+            self.profiler.print_summary()
 
     def parent_selection(self, networks, crossover_number, population_size):
         """
@@ -189,15 +201,18 @@ class GeneticAlgorithm:
         if (self.use_torch and self.device and self.device.type == 'mps' 
             and self.mps_tournament_mode == 'hybrid'):
             print(f"       Creating CPU copies of {population_size} networks for tournaments...")
-            cpu_start = time.time()
-            cpu_device = torch.device('cpu')
-            cpu_networks = []
-            for net in networks:
-                cpu_net = net.clone()
-                cpu_net.to_device(cpu_device)
-                cpu_networks.append(cpu_net)
-            cpu_time = time.time() - cpu_start
-            print(f"       CPU copies created in {cpu_time:.2f}s")
+            
+            with self.profiler.timer('cpu_copies_creation'):
+                cpu_start = time.time()
+                cpu_device = torch.device('cpu')
+                cpu_networks = []
+                for net in networks:
+                    with self.profiler.timer('single_cpu_copy'):
+                        cpu_net = net.clone()
+                        cpu_net.to_device(cpu_device)
+                        cpu_networks.append(cpu_net)
+                cpu_time = time.time() - cpu_start
+                print(f"       CPU copies created in {cpu_time:.2f}s")
         
         for i in range(crossover_number):
             if i % 50 == 0 and i > 0:  # Progress update every 50 parents
@@ -211,7 +226,8 @@ class GeneticAlgorithm:
             
             # Use CPU copies for tournament if available, original networks otherwise
             if cpu_networks:
-                winner_idx = self.tournament_with_cpu_nets(cpu_networks[idx1], cpu_networks[idx2], cpu_networks[idx3])
+                with self.profiler.timer('tournament_cpu'):
+                    winner_idx = self.tournament_with_cpu_nets(cpu_networks[idx1], cpu_networks[idx2], cpu_networks[idx3])
                 # Return the original MPS network corresponding to the winner
                 if winner_idx == 0:
                     parent = networks[idx1]
@@ -220,7 +236,8 @@ class GeneticAlgorithm:
                 else:
                     parent = networks[idx3]
             else:
-                parent = self.tournament(networks[idx1], networks[idx2], networks[idx3])
+                with self.profiler.timer('tournament_native'):
+                    parent = self.tournament(networks[idx1], networks[idx2], networks[idx3])
                 
             parents.append(parent)
         
@@ -274,23 +291,30 @@ class GeneticAlgorithm:
         backend = "threading" if (self.use_torch and self.device and self.device.type in ['mps', 'cuda']) else "loky"
         
         print(f"     Running evaluation with {backend} backend...")
-        game = Game()
         
-        # Run 4 rounds of evaluation
-        print("     Round 1/4...")
-        results1 = list(Parallel(n_jobs=num_cores, backend=backend)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
-        print("     Round 2/4...")
-        results2 = list(Parallel(n_jobs=num_cores, backend=backend)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
-        print("     Round 3/4...")
-        results3 = list(Parallel(n_jobs=num_cores, backend=backend)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
-        print("     Round 4/4...")
-        results4 = list(Parallel(n_jobs=num_cores, backend=backend)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
-        
-        print("     Calculating scores...")
-        for i in range(len(results1)):
-            # Filter out None values before calculating the mean
-            scores = [score for score in [results1[i], results2[i], results3[i], results4[i]] if score is not None]
-            networks[i].score = int(np.mean(scores)) if scores else 0
+        with self.profiler.timer('evaluation_total'):
+            game = Game()
+            
+            # Run 4 rounds of evaluation
+            print("     Round 1/4...")
+            with self.profiler.timer('evaluation_round_1'):
+                results1 = list(Parallel(n_jobs=num_cores, backend=backend)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
+            print("     Round 2/4...")
+            with self.profiler.timer('evaluation_round_2'):
+                results2 = list(Parallel(n_jobs=num_cores, backend=backend)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
+            print("     Round 3/4...")
+            with self.profiler.timer('evaluation_round_3'):
+                results3 = list(Parallel(n_jobs=num_cores, backend=backend)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
+            print("     Round 4/4...")
+            with self.profiler.timer('evaluation_round_4'):
+                results4 = list(Parallel(n_jobs=num_cores, backend=backend)(delayed(game.start)(display=False, neural_net=networks[i]) for i in range(len(networks))))
+            
+            print("     Calculating scores...")
+            with self.profiler.timer('score_calculation'):
+                for i in range(len(results1)):
+                    # Filter out None values before calculating the mean
+                    scores = [score for score in [results1[i], results2[i], results3[i], results4[i]] if score is not None]
+                    networks[i].score = int(np.mean(scores)) if scores else 0
 
     def tournament(self, net1, net2, net3):
         """
