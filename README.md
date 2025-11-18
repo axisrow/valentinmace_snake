@@ -12,8 +12,19 @@ This repository contains:
 - A Genetic Algorithm module
 - A Neural Network module
 - A main file with toy examples
+- **🆕 Google Colab notebook for cloud training** ([Russian guide](COLAB_README_RU.md))
 
 I timed most functions to be sure to improve speed and used numba jit for compiling some functions, the genetic algorithm is parallelized for its main part (snakes evaluation) using multiprocessing and joblib
+
+## 🚀 Quick Start with Google Colab
+
+Want to train the snake without installing anything? Use our **Google Colab notebook**!
+
+1. Open `Snake_Training_Colab.ipynb` in Google Colab
+2. Run all cells
+3. Download your trained model
+
+[📖 Detailed Russian Guide](COLAB_README_RU.md) | [📓 Open Notebook](Snake_Training_Colab.ipynb)
 
 
 ## Installation
